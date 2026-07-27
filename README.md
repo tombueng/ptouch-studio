@@ -11,6 +11,8 @@
 
 </div>
 
+<img src="data/screenshots/main.png" alt="P-touch Studio" width="900">
+
 Brother ships no Linux application, and the tools that do exist treat the printer
 as a destination only: they have no idea which tape is loaded. P-touch Studio asks
 the device directly — before every print.
@@ -27,6 +29,10 @@ the device directly — before every print.
   glyphs rather than from the font metrics.
 - Any installed font, alignment, fixed or growing length, margins, line spacing,
   frame, mirroring for transparent tape, copies.
+- **Symbols and emoji**, inserted from a palette. Outline symbols (★ ⚠ ✓ → Ω €)
+  print as crisp vectors; pictographs such as 🔧 📦 come from a colour bitmap font
+  that no PDF can embed, so those labels are rendered as a greyscale image instead
+  — which is exactly what the preview then shows.
 - **Guided setup**: find the device, pair it, create the Bluetooth port and the
   print queue — from inside the application.
 - **Command line** for batches and scripts.
@@ -36,13 +42,13 @@ the device directly — before every print.
 ### Debian, Ubuntu, Linux Mint
 
 ```bash
-sudo apt install ./ptouch-studio_0.1.0_amd64.deb
+sudo apt install ./ptouch-studio_0.2.0_amd64.deb
 ```
 
 ### Fedora, openSUSE
 
 ```bash
-sudo dnf install ./ptouch-studio-0.1.0-1.x86_64.rpm
+sudo dnf install ./ptouch-studio-0.2.0-1.x86_64.rpm
 ```
 
 ### Arch Linux
@@ -75,7 +81,7 @@ cmake --build build
 sudo cmake --install build
 ```
 
-Needs Qt 6.4 or newer, a C++20 compiler and CMake ≥ 3.21. At runtime it wants
+Needs Qt 6.2 or newer, a C++20 compiler and CMake ≥ 3.21. At runtime it wants
 `bluez`, `cups` and the P-touch driver (`printer-driver-ptouch` on Debian and
 Ubuntu, `ptouch-driver` on Fedora and Arch).
 
@@ -145,6 +151,12 @@ what brings the Bluetooth connection up in the first place — and waits for the
 printer to report itself finished after the last byte. Without that wait, multiple
 copies lose their last label, because the connection drops while the device is
 still working.
+
+**Colour emoji.** Qt happily draws them on screen, but a PDF cannot carry colour
+bitmap glyphs — they disappear on the way to the printer without any error. Which
+characters are affected cannot be decided by code point (⚡ U+26A1 comes from the
+colour font, ★ U+2605 does not), so the fonts are asked directly: if no outline
+family can draw a character, the whole label goes out as an image.
 
 **Font scaling.** Qt converts point sizes against the device resolution. Scaling
 the coordinate system on top of that for a 600 dpi PDF makes text come out 600/72

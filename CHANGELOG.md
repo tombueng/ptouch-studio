@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] — 2026-07-27
+
+### Added
+
+- Symbols and emoji on labels, with a palette for inserting them. Outline symbols
+  print as vectors; colour pictographs are rendered as a greyscale image, because
+  colour bitmap glyphs cannot be embedded into a PDF and would otherwise vanish
+  between preview and tape.
+- Font fallback to symbol families for characters the chosen font lacks.
+
+### Fixed
+
+- The application could abort when the window was closed while a status query was
+  still running.
+
 ## [0.1.0] — 2026-07-27
 
 First release.
@@ -27,4 +42,5 @@ First release.
   multi-copy jobs come out complete.
 - Packages for Debian/Ubuntu, Fedora/openSUSE and Arch, plus an AppImage.
 
+[0.2.0]: https://github.com/tombueng/ptouch-studio/releases/tag/v0.2.0
 [0.1.0]: https://github.com/tombueng/ptouch-studio/releases/tag/v0.1.0

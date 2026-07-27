@@ -2,6 +2,7 @@
 
 #include <QElapsedTimer>
 #include <QMainWindow>
+#include <QPointer>
 
 #include "Config.h"
 #include "Engine.h"
@@ -27,6 +28,10 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
     explicit MainWindow(QWidget *parent = nullptr);
+    ~MainWindow() override;
+
+    // Fills the fields with presentable values for screenshots.
+    void demoContent();
 
 protected:
     void changeEvent(QEvent *event) override;
@@ -40,6 +45,7 @@ private slots:
     void doPrint();
     void savePdf();
     void openSetup();
+    void insertSymbol();
 
 private:
     QWidget *buildControls();
@@ -56,6 +62,7 @@ private:
 
     PreviewWidget *m_preview = nullptr;
     QPlainTextEdit *m_text = nullptr;
+    QPushButton *m_symbolButton = nullptr;
     QComboBox *m_tape = nullptr;
     QLabel *m_tapeStatus = nullptr;
     QPushButton *m_adopt = nullptr;
@@ -79,7 +86,9 @@ private:
     QProgressBar *m_progress = nullptr;
 
     PrintJob *m_job = nullptr;
-    StatusWorker *m_worker = nullptr;
+    // QPointer, because the worker deletes itself once it is done —
+    // a raw pointer would dangle and the destructor could not check it.
+    QPointer<StatusWorker> m_worker;
     QTimer *m_poll = nullptr;
 
     Status m_status;
@@ -89,6 +98,7 @@ private:
     bool m_settingTape = false;     // suppresses m_manualTape while following along
     bool m_printPending = false;    // check running, print afterwards
     bool m_building = true;
+    bool m_demoMode = false;   // screenshots: no printer traffic
 };
 
 } // namespace ptouch

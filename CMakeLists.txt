@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(ptouch-studio
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "Design and print labels for Brother P-touch tape cassettes"
     HOMEPAGE_URL "https://github.com/tombueng/ptouch-studio"
     LANGUAGES CXX)

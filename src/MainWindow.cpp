@@ -16,6 +16,7 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPlainTextEdit>
@@ -135,6 +136,29 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     });
 }
 
+MainWindow::~MainWindow()
+{
+    // The status worker talks to a Bluetooth port and can be mid-query when the
+    // window closes. Letting it finish avoids tearing a running thread down.
+    if (m_worker && m_worker->isRunning())
+        m_worker->wait(5000);
+}
+
+void MainWindow::demoContent()
+{
+    m_demoMode = true;              // no printer chatter while posing for the camera
+    m_poll->stop();
+    m_text->setPlainText(QStringLiteral("⚡ Fuse box\nF3 · 16 A"));
+    m_tape->setCurrentIndex(tapeIndex(12.0));
+    m_copies->setValue(2);
+    m_detected = 12.0;
+    m_detectedAt.restart();
+    m_status.mediaType = QStringLiteral("laminated");
+    refresh();
+    updateStatusLabel();
+    statusBar()->showMessage(QStringLiteral("Ready"));
+}
+
 QWidget *MainWindow::buildControls()
 {
     auto *box = new QWidget;
@@ -167,6 +191,10 @@ QWidget *MainWindow::buildControls()
     m_text->setFixedHeight(88);
     connect(m_text, &QPlainTextEdit::textChanged, this, &MainWindow::refresh);
     textLayout->addWidget(m_text);
+
+    m_symbolButton = new QPushButton(QStringLiteral("Insert symbol …"));
+    connect(m_symbolButton, &QPushButton::clicked, this, &MainWindow::insertSymbol);
+    textLayout->addWidget(m_symbolButton);
 
     auto *form = new QFormLayout;
     m_font = new QFontComboBox;
@@ -315,7 +343,7 @@ void MainWindow::adoptDetectedTape()
 
 void MainWindow::detectTape(bool quiet)
 {
-    if (m_worker && m_worker->isRunning())
+    if (m_demoMode || (m_worker && m_worker->isRunning()))
         return;
     if (!quiet) {
         m_tapeStatus->setText(QStringLiteral("asking the printer …"));
@@ -449,6 +477,46 @@ void MainWindow::confirmAndPrint()
 
     setBusy(true, QStringLiteral("Submitting job …"));
     m_job->start(m_spec, m_layout, m_config.printer);
+}
+
+void MainWindow::insertSymbol()
+{
+    // Outline symbols first: those print as crisp vectors. The pictographs below
+    // come from a colour font and take the image path, which is coarser on tape.
+    static const QStringList outlines = {
+        QStringLiteral("→"), QStringLiteral("←"), QStringLiteral("↑"), QStringLiteral("↓"),
+        QStringLiteral("★"), QStringLiteral("☆"), QStringLiteral("●"), QStringLiteral("■"),
+        QStringLiteral("✓"), QStringLiteral("✗"), QStringLiteral("⚠"), QStringLiteral("⚡"),
+        QStringLiteral("☎"), QStringLiteral("✉"), QStringLiteral("♻"), QStringLiteral("☣"),
+        QStringLiteral("°"), QStringLiteral("±"), QStringLiteral("µ"), QStringLiteral("Ω"),
+        QStringLiteral("€"), QStringLiteral("§"), QStringLiteral("№"), QStringLiteral("⌀"),
+    };
+    static const QStringList pictographs = {
+        QStringLiteral("🔧"), QStringLiteral("🔌"), QStringLiteral("💡"), QStringLiteral("🔋"),
+        QStringLiteral("📦"), QStringLiteral("🗄"), QStringLiteral("🔑"), QStringLiteral("🧰"),
+        QStringLiteral("🧪"), QStringLiteral("🌡"), QStringLiteral("❄"), QStringLiteral("🔥"),
+    };
+
+    QMenu menu(this);
+    const auto addRow = [&menu, this](const QStringList &items) {
+        for (const QString &symbol : items) {
+            QAction *action = menu.addAction(symbol);
+            connect(action, &QAction::triggered, this, [this, symbol] {
+                m_text->insertPlainText(symbol);
+                m_text->setFocus();
+            });
+        }
+    };
+    addRow(outlines);
+    menu.addSeparator();
+    QAction *note = menu.addAction(QStringLiteral("— printed as an image —"));
+    note->setEnabled(false);
+    addRow(pictographs);
+
+    QFont big = menu.font();
+    big.setPointSizeF(big.pointSizeF() * 1.4);
+    menu.setFont(big);
+    menu.exec(m_symbolButton->mapToGlobal(QPoint(0, m_symbolButton->height())));
 }
 
 void MainWindow::savePdf()

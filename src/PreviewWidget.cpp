@@ -69,7 +69,8 @@ void PreviewWidget::paintEvent(QPaintEvent *)
         p.translate(m_layout.lengthPt, 0);
         p.scale(-1, 1);
     }
-    ptouch::render(p, m_spec, m_layout);
+    // 300 dpi is plenty for the preview and matches what the printer resolves.
+    ptouch::paintLabel(p, m_spec, m_layout, 300);
     p.restore();
     p.restore();
 

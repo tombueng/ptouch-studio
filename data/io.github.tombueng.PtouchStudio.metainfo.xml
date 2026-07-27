@@ -25,6 +25,7 @@
       <li>Any installed font, automatic size that fills the tape height</li>
       <li>Alignment, fixed or automatic length, margins, frame, mirroring, copies</li>
       <li>Guided setup for pairing, Bluetooth port and print queue</li>
+    <li>Symbols and emoji from a palette</li>
     </ul>
     <ul xml:lang="de">
       <li>Bandbreite wird automatisch erkannt und vor jedem Druck erneut geprüft</li>
@@ -38,6 +39,13 @@
   <launchable type="desktop-id">io.github.tombueng.PtouchStudio.desktop</launchable>
   <url type="homepage">https://github.com/tombueng/ptouch-studio</url>
   <url type="bugtracker">https://github.com/tombueng/ptouch-studio/issues</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>Designing a label with the loaded tape detected automatically</caption>
+      <image>https://raw.githubusercontent.com/tombueng/ptouch-studio/main/data/screenshots/main.png</image>
+    </screenshot>
+  </screenshots>
 
   <provides>
     <binary>ptouch-studio</binary>
@@ -58,6 +66,12 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.2.0" date="2026-07-27">
+      <description>
+        <p>Symbols and emoji on labels, plus a fix for a crash when closing the
+        window during a status query.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-07-27">
       <description>
         <p>First release.</p>

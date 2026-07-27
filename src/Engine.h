@@ -6,6 +6,7 @@
 #pragma once
 
 #include <QFont>
+#include <QImage>
 #include <QList>
 #include <QString>
 #include <QStringList>
@@ -76,8 +77,19 @@ struct Layout {
 QFont buildFont(const Spec &spec, double sizePt);
 Layout computeLayout(const Spec &spec);
 
+// True when the text needs glyphs that only a colour bitmap font provides.
+// Those cannot be embedded into a PDF — such labels are rendered as an image.
+bool needsRasterGlyphs(const Spec &spec);
+
 // Draws the label lying down: x runs along the tape, y across it, origin top left.
 void render(QPainter &painter, const Spec &spec, const Layout &layout);
+
+// Same, but falls back to an image where glyphs cannot be drawn as outlines.
+// `dpi` controls the resolution of that fallback.
+void paintLabel(QPainter &painter, const Spec &spec, const Layout &layout, int dpi);
+
+// Renders the label into a greyscale image — what a monochrome printer will get.
+QImage renderToImage(const Spec &spec, const Layout &layout, int dpi);
 
 // Writes a PDF whose page size matches the label exactly; returns it in points.
 struct PageSize { int widthPt; int heightPt; };

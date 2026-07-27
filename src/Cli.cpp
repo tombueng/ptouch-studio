@@ -3,11 +3,14 @@
 #include "Config.h"
 #include "Engine.h"
 #include "Printer.h"
+#include "MainWindow.h"
 #include "Provision.h"
 #include "Status.h"
 #include "Version.h"
 
 #include <QCommandLineParser>
+#include <QApplication>
+#include <QPixmap>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -314,6 +317,29 @@ int cmdSetup(const QStringList &args)
     return cmdCheck();
 }
 
+// Undocumented helper: produces the screenshots used in the README and in the
+// AppStream metadata, so they can be regenerated instead of being taken by hand.
+int cmdScreenshot(const QStringList &args)
+{
+    const QString target = args.value(1, QStringLiteral("screenshot.png"));
+
+    MainWindow window;
+    window.resize(1040, 660);
+    window.demoContent();
+    window.show();
+    QApplication::processEvents();
+    QApplication::processEvents();
+
+    const QPixmap shot = window.grab();
+    if (!shot.save(target)) {
+        err() << QStringLiteral("could not write %1").arg(target) << Qt::endl;
+        return 1;
+    }
+    out() << QStringLiteral("%1 (%2×%3)").arg(target).arg(shot.width()).arg(shot.height())
+          << Qt::endl;
+    return 0;
+}
+
 int cmdSetupSystem(const QStringList &args)
 {
     QCommandLineParser p;
@@ -372,6 +398,7 @@ int runCli(const QStringList &arguments)
     if (command == QStringLiteral("scan"))         return cmdScan();
     if (command == QStringLiteral("setup"))        return cmdSetup(arguments.mid(1));
     if (command == QStringLiteral("setup-system")) return cmdSetupSystem(arguments.mid(1));
+    if (command == QStringLiteral("screenshot"))   return cmdScreenshot(arguments.mid(1));
 
     out() << usage();
     return command.isEmpty() || command == QStringLiteral("--help")

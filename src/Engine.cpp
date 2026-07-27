@@ -1,6 +1,9 @@
 #include "Engine.h"
 
+#include <QFontDatabase>
 #include <QFontMetricsF>
+#include <QHash>
+#include <QRawFont>
 #include <QMarginsF>
 #include <QPageLayout>
 #include <QPageSize>
@@ -66,11 +69,53 @@ double Spec::printablePt() const
 
 QFont buildFont(const Spec &spec, double sizePt)
 {
-    QFont f(spec.family);
+    QFont f;
+    // Fall back to symbol and emoji families for anything the chosen font lacks.
+    // Outline fonts come first: their glyphs survive the trip through the PDF.
+    f.setFamilies({spec.family,
+                   QStringLiteral("Noto Sans Symbols2"),
+                   QStringLiteral("Symbola"),
+                   QStringLiteral("Noto Emoji"),
+                   QStringLiteral("Noto Color Emoji")});
     f.setPixelSize(std::max(1, int(qRound(sizePt * UnitsPerPt))));
     f.setBold(spec.bold);
     f.setItalic(spec.italic);
     return f;
+}
+
+bool needsRasterGlyphs(const Spec &spec)
+{
+    // Guessing by code point does not work: ⚡ (U+26A1) sits well below the
+    // pictograph blocks yet still comes from the colour font, while ★ (U+2605) is
+    // a plain outline. So ask the fonts instead — if no outline family can draw a
+    // character, only the colour bitmap font is left and the PDF would lose it.
+    static QHash<QString, QRawFont> cache;
+    const QStringList families = {spec.family,
+                                  QStringLiteral("Noto Sans Symbols2"),
+                                  QStringLiteral("Symbola"),
+                                  QStringLiteral("Noto Emoji"),
+                                  QStringLiteral("DejaVu Sans")};
+    const QStringList installed = QFontDatabase::families();
+
+    for (const uint ucs4 : spec.text.toUcs4()) {
+        if (ucs4 < 0x80 || QChar::isSpace(ucs4))
+            continue;
+        bool drawable = false;
+        for (const QString &family : families) {
+            if (family.isEmpty() || !installed.contains(family))
+                continue;
+            QRawFont &raw = cache[family];
+            if (!raw.isValid())
+                raw = QRawFont::fromFont(QFont(family));
+            if (raw.isValid() && raw.supportsCharacter(ucs4)) {
+                drawable = true;
+                break;
+            }
+        }
+        if (!drawable)
+            return true;
+    }
+    return false;
 }
 
 namespace {
@@ -221,6 +266,52 @@ void render(QPainter &painter, const Spec &spec, const Layout &layout)
     painter.restore();
 }
 
+QImage renderToImage(const Spec &spec, const Layout &layout, int dpi)
+{
+    const double scale = dpi / 72.0;
+    const int w = std::max(1, int(qRound(layout.lengthPt * scale)));
+    const int h = std::max(1, int(qRound(spec.tapePt() * scale)));
+
+    QImage image(w, h, QImage::Format_RGB32);
+    image.fill(Qt::white);
+
+    QPainter p(&image);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setRenderHint(QPainter::TextAntialiasing);
+    p.setRenderHint(QPainter::SmoothPixmapTransform);
+    p.scale(scale, scale);
+    render(p, spec, layout);
+    p.end();
+
+    // The printer is monochrome, so grey is closer to the result than colour.
+    QImage grey = image.convertToFormat(QImage::Format_Grayscale8);
+
+    // Emoji artwork lives mostly in the middle greys, which a monochrome tape
+    // dithers away to almost nothing. Stretching the range keeps the shapes
+    // legible without turning them into black blobs.
+    uchar curve[256];
+    for (int i = 0; i < 256; ++i) {
+        const double v = std::clamp((i / 255.0 - 0.12) / 0.76, 0.0, 1.0);
+        curve[i] = uchar(qRound(v * 255));
+    }
+    for (int y = 0; y < grey.height(); ++y) {
+        uchar *line = grey.scanLine(y);
+        for (int x = 0; x < grey.width(); ++x)
+            line[x] = curve[line[x]];
+    }
+    return grey;
+}
+
+void paintLabel(QPainter &painter, const Spec &spec, const Layout &layout, int dpi)
+{
+    if (!needsRasterGlyphs(spec)) {
+        render(painter, spec, layout);
+        return;
+    }
+    const QImage image = renderToImage(spec, layout, dpi);
+    painter.drawImage(QRectF(0, 0, layout.lengthPt, spec.tapePt()), image);
+}
+
 PageSize writePdf(const QString &path, const Spec &spec, const Layout &layout)
 {
     const double wPt = spec.tapePt();
@@ -241,7 +332,7 @@ PageSize writePdf(const QString &path, const Spec &spec, const Layout &layout)
         p.translate(layout.lengthPt, 0);
         p.scale(-1, 1);
     }
-    render(p, spec, layout);
+    paintLabel(p, spec, layout, writer.resolution());
     p.end();
 
     return {int(qRound(wPt)), int(qRound(hPt))};

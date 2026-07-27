@@ -1,6 +1,6 @@
 # Maintainer: Thomas Büngener <tombueng@gmail.com>
 pkgname=ptouch-studio
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Design and print labels for Brother P-touch tape cassettes over Bluetooth"
 arch=('x86_64' 'aarch64')

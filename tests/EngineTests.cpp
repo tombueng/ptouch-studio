@@ -182,6 +182,34 @@ void testPdfGeometry(const QString &workDir)
     checkNear(ink.marginTrailMm, s.marginMm, 1.0, "trailing side margin as configured");
 }
 
+void testGlyphDetection()
+{
+    // Plain text and outline symbols draw as vectors; anything only the colour
+    // bitmap font provides has to take the image path or the PDF loses it.
+    Spec plain;
+    plain.text = QStringLiteral("Workshop 12");
+    check(!needsRasterGlyphs(plain), "plain text draws as outlines");
+
+    Spec star;
+    star.text = QStringLiteral("★ Shelf");
+    check(!needsRasterGlyphs(star), "outline symbols draw as outlines");
+
+    Spec emoji;
+    emoji.text = QStringLiteral("🔧 Tool");
+    check(needsRasterGlyphs(emoji), "pictographs need the image path");
+
+    // The image has to carry actual ink, otherwise the emoji silently vanishes.
+    const Layout l = computeLayout(emoji);
+    const QImage image = renderToImage(emoji, l, 300);
+    int dark = 0;
+    for (int y = 0; y < image.height(); ++y)
+        for (int x = 0; x < image.width(); ++x)
+            if (qGray(image.pixel(x, y)) < 200)
+                ++dark;
+    check(dark > 500, "rendered image contains the pictograph");
+    check(image.format() == QImage::Format_Grayscale8, "image is greyscale for the tape");
+}
+
 void testStatusDecoding()
 {
     QByteArray frame(StatusLength, '\0');
@@ -215,6 +243,7 @@ int main(int argc, char *argv[])
     testFixedLength();
     testOverflowDetected();
     testPdfGeometry(dir.path());
+    testGlyphDetection();
     testStatusDecoding();
 
     std::printf("\n%s\n", failures == 0 ? "all checks passed"
