@@ -56,7 +56,9 @@ Brother's Raster Command Reference for the PT-P700 series (180 dpi):
 | 18 mm | 51 pt | 112 | 15.8 mm |
 | 24 mm | 68 pt | 128 | 18.1 mm |
 
-The text block is centred inside that strip, not on the tape as a whole.
+The text block is centred inside that strip, not on the tape as a whole. Measured
+on a PT-P710BT with 12 mm tape: 9.80 mm of ink within the 9.88 mm the head can
+reach, centred, nothing clipped.
 
 ### Font sizes
 
@@ -110,7 +112,8 @@ polls the status until the device is back in phase 0.
 
 That wait is not cosmetic. After the last byte the printer is still transferring,
 feeding tape and cutting. Close the connection before that and it discards the
-rest — ask for three copies and two come out.
+rest — ask for three copies and two come out. Both behaviours were observed on a
+PT-P710BT: two labels without the wait, three with it.
 
 If no connection can be made the backend exits with status 6
 (`CUPS_BACKEND_HOLD`): CUPS keeps the job and prints it once the printer is
