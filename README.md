@@ -73,6 +73,11 @@ sudo install -m 700 ptouch-cups-backend-x86_64 /usr/lib/cups/backend/rfcomm
 
 Prebuilt packages are on the [releases page](https://github.com/tombueng/ptouch-studio/releases).
 
+A Flatpak manifest lives in `packaging/flatpak/`, but note what a sandbox cannot
+do: it has no `lp`, no `bluetoothctl` and no way to install a CUPS backend, so it
+covers designing and exporting labels only. Printing wants one of the packages
+above. See [docs/publishing.md](docs/publishing.md).
+
 ### Building from source
 
 ```bash

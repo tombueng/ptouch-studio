@@ -1,0 +1,58 @@
+# Snap package.
+#
+# This needs classic confinement, and that is not a shortcut: the application
+# opens /dev/rfcomm0 directly, drives bluetoothctl and rfcomm, and installs a
+# CUPS backend plus a systemd unit on the host. Strict confinement cannot do any
+# of that, and there is no interface that would grant it.
+#
+# Classic snaps are reviewed manually by the Snap Store team, so publishing this
+# means requesting that confinement with the reasoning above.
+#
+# Build:      snapcraft
+# Install:    sudo snap install --classic --dangerous ./ptouch-studio_*.snap
+name: ptouch-studio
+base: core24
+adopt-info: ptouch-studio
+summary: Design and print labels for Brother P-touch tape cassettes
+description: |
+  Prints labels on Brother P-touch label printers over Bluetooth, without the
+  vendor software. The width of the inserted tape cassette is read from the
+  printer itself, so a label is always laid out for the tape that is really
+  loaded — checked again immediately before every print.
+
+  Includes a setup wizard for pairing, the Bluetooth port and the print queue.
+
+license: MIT
+grade: stable
+confinement: classic
+compression: lzo
+
+platforms:
+  amd64:
+  arm64:
+
+apps:
+  ptouch-studio:
+    command: usr/bin/ptouch-studio
+    desktop: usr/share/applications/io.github.tombueng.PtouchStudio.desktop
+    extensions: [kde-neon-6]
+
+parts:
+  ptouch-studio:
+    plugin: cmake
+    source: https://github.com/tombueng/ptouch-studio.git
+    source-tag: v0.2.0
+    override-pull: |
+      craftctl default
+      craftctl set version="$(git describe --tags --abbrev=0 | sed 's/^v//')"
+    cmake-parameters:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_PREFIX=/usr
+      - -DBUILD_TESTING=OFF
+    build-packages:
+      - qt6-base-dev
+      - libgl-dev
+    stage-packages:
+      - bluez
+      - cups-client
+      - printer-driver-ptouch

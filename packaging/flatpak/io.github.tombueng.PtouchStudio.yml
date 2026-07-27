@@ -1,0 +1,47 @@
+# Flatpak manifest.
+#
+# A word of warning before you reach for this: P-touch Studio is only half an
+# application. The other half lives in the system — a CUPS backend, an RFCOMM
+# port bound by systemd and a udev rule. A sandbox cannot install any of that.
+#
+# So the Flatpak covers designing and printing labels, and expects the system
+# part to be in place already (install the deb, rpm or the standalone backend
+# from the release page, then run `ptouch-studio setup` once on the host).
+#
+# Build and run locally:
+#   flatpak-builder --user --install --force-clean build-flatpak \
+#       packaging/flatpak/io.github.tombueng.PtouchStudio.yml
+#   flatpak run io.github.tombueng.PtouchStudio
+app-id: io.github.tombueng.PtouchStudio
+runtime: org.kde.Platform
+runtime-version: '6.9'
+sdk: org.kde.Sdk
+command: ptouch-studio
+
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Printing goes through the host's CUPS.
+  - --socket=cups
+  # Saving a label as PDF.
+  - --filesystem=xdg-documents
+  # Reading the loaded tape means opening /dev/rfcomm0 directly. Flatpak has no
+  # finer grained way to hand out a single character device.
+  - --device=all
+
+modules:
+  - name: ptouch-studio
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_TESTING=OFF
+      # Inside the sandbox the backend is useless — CUPS runs on the host.
+      - -DCUPS_BACKEND_DIR=lib/cups/backend
+    sources:
+      - type: git
+        url: https://github.com/tombueng/ptouch-studio.git
+        tag: v0.2.0
+    cleanup:
+      - /lib/cups
