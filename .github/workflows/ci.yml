@@ -78,7 +78,7 @@ jobs:
         run: |
           sudo apt-get install -y ./*.deb
           QT_QPA_PLATFORM=offscreen ptouch-studio --help
-          test -x /usr/lib/cups/backend/rfcomm
+          sudo test -x /usr/lib/cups/backend/rfcomm   # installed root-only on purpose
 
       - uses: actions/upload-artifact@v4
         with:

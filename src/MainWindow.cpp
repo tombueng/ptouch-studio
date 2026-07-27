@@ -84,14 +84,21 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     root->addLayout(right, 1);
     setCentralWidget(central);
 
+    // Actions are created and connected separately: the addAction() overload
+    // taking a functor only exists from Qt 6.3 onwards.
     auto *menu = menuBar()->addMenu(QStringLiteral("&Printer"));
-    menu->addAction(QStringLiteral("&Setup …"), this, &MainWindow::openSetup);
-    menu->addAction(QStringLiteral("Check tape &now"), this, [this] { detectTape(false); });
+    QAction *setupAction = menu->addAction(QStringLiteral("&Setup …"));
+    connect(setupAction, &QAction::triggered, this, &MainWindow::openSetup);
+    QAction *checkAction = menu->addAction(QStringLiteral("Check tape &now"));
+    connect(checkAction, &QAction::triggered, this, [this] { detectTape(false); });
     menu->addSeparator();
-    menu->addAction(QStringLiteral("&Quit"), this, &QWidget::close);
+    QAction *quitAction = menu->addAction(QStringLiteral("&Quit"));
+    connect(quitAction, &QAction::triggered, this, &QWidget::close);
 
     auto *help = menuBar()->addMenu(QStringLiteral("&Help"));
-    help->addAction(QStringLiteral("About %1").arg(QStringLiteral(PTOUCH_APP_NAME)), this, [this] {
+    QAction *aboutAction =
+        help->addAction(QStringLiteral("About %1").arg(QStringLiteral(PTOUCH_APP_NAME)));
+    connect(aboutAction, &QAction::triggered, this, [this] {
         QMessageBox::about(this, QStringLiteral(PTOUCH_APP_NAME),
                            QStringLiteral("<h3>%1 %2</h3>"
                                           "<p>Labels for Brother P-touch tape cassettes.</p>"

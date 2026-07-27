@@ -15,7 +15,8 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
 endif()
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Widgets)
+# 6.2 is what Ubuntu 22.04 ships; nothing here needs anything newer.
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets)
 
 set(APP_ID "io.github.tombueng.PtouchStudio")
 configure_file(src/Version.h.in ${CMAKE_CURRENT_BINARY_DIR}/Version.h @ONLY)
@@ -92,13 +93,13 @@ set(CPACK_STRIP_FILES ON)
 set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
 set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS
-    "libqt6widgets6 (>= 6.4), libqt6gui6 (>= 6.4), libqt6core6 (>= 6.4), bluez, cups-client, printer-driver-ptouch")
+    "libqt6widgets6 (>= 6.2), libqt6gui6 (>= 6.2), libqt6core6 (>= 6.2), bluez, cups-client, printer-driver-ptouch")
 set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "cups, policykit-1 | polkitd")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_LICENSE "MIT")
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Productivity")
-set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtbase-gui >= 6.4, bluez, cups, ptouch-driver")
+set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtbase-gui >= 6.2, bluez, cups, ptouch-driver")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 # do not claim directories that belong to other packages
 set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
