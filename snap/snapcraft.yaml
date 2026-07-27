@@ -1,0 +1,89 @@
+# Snap package.
+#
+# This needs classic confinement, and that is not a shortcut: the application
+# opens /dev/rfcomm0 directly, drives bluetoothctl and rfcomm, and installs a
+# CUPS backend plus a systemd unit on the host. Strict confinement cannot do any
+# of that — the closest interfaces (bluez, serial-port) do not cover an RFCOMM
+# character device, so tape detection would be lost.
+#
+# Classic rules out the kde-neon-6 extension, which serves Qt from a shared
+# content snap and only works under strict confinement. Qt is therefore staged
+# into the snap itself, which makes it larger but self-contained.
+#
+# Classic snaps are reviewed by hand by the Snap Store team, so publishing this
+# means requesting that confinement with the reasoning above.
+#
+# Build:      snapcraft --use-lxd     (from the repository root)
+# Install:    sudo snap install --classic --dangerous ./ptouch-studio_*.snap
+name: ptouch-studio
+base: core24
+adopt-info: ptouch-studio
+summary: Design and print labels for Brother P-touch tape cassettes
+description: |
+  Prints labels on Brother P-touch label printers over Bluetooth, without the
+  vendor software. The width of the inserted tape cassette is read from the
+  printer itself, so a label is always laid out for the tape that is really
+  loaded — checked again immediately before every print.
+
+  Includes a setup wizard for pairing, the Bluetooth port and the print queue.
+
+title: P-touch Studio
+website: https://github.com/tombueng/ptouch-studio
+source-code: https://github.com/tombueng/ptouch-studio
+issues: https://github.com/tombueng/ptouch-studio/issues
+contact: https://github.com/tombueng/ptouch-studio/issues
+icon: data/icons/512/io.github.tombueng.PtouchStudio.png
+
+license: MIT
+grade: stable
+confinement: classic
+compression: lzo
+
+platforms:
+  amd64:
+
+apps:
+  ptouch-studio:
+    command: usr/bin/ptouch-studio
+    desktop: usr/share/applications/io.github.tombueng.PtouchStudio.desktop
+    environment:
+      LD_LIBRARY_PATH: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR:$SNAP/usr/lib
+      QT_PLUGIN_PATH: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/qt6/plugins
+      QT_QPA_PLATFORM_PLUGIN_PATH: $SNAP/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/qt6/plugins/platforms
+      FONTCONFIG_PATH: $SNAP/etc/fonts
+      # A classic snap sees the host's Qt plugins as well. They are rejected as
+      # incompatible (correctly — the bundled ones are used), but the loader says
+      # so loudly on every start. Silence that one category only.
+      QT_LOGGING_RULES: qt.core.plugin.loader=false
+
+parts:
+  ptouch-studio:
+    plugin: cmake
+    # Built from the working tree: the build container has no network access to
+    # GitHub, and for a local build the checkout would be redundant anyway.
+    source: .
+    source-type: local
+    override-pull: |
+      craftctl default
+      craftctl set version="0.2.0"
+    cmake-parameters:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_PREFIX=/usr
+      - -DBUILD_TESTING=OFF
+    build-packages:
+      - qt6-base-dev
+      - libgl-dev
+    stage-packages:
+      - libqt6widgets6
+      - libqt6gui6
+      - libqt6core6
+      - libqt6dbus6
+      - qt6-qpa-plugins
+      - libgl1
+      - libglx-mesa0
+      - fontconfig
+      - fonts-dejavu-core
+      # The application shells out to these; a classic snap can see the host's
+      # binaries as well, but bundling keeps it working on minimal systems.
+      - cups-client
+      - bluez

@@ -6,3 +6,5 @@ build-*/
 *.tar.gz
 .cache/
 compile_commands.json
+*.snap
+snap/.snapcraft/
