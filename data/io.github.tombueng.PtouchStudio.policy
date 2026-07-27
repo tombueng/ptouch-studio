@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
+<policyconfig>
+
+  <vendor>P-touch Studio</vendor>
+  <vendor_url>https://github.com/tombueng/ptouch-studio</vendor_url>
+  <icon_name>io.github.tombueng.PtouchStudio</icon_name>
+
+  <action id="io.github.tombueng.PtouchStudio.setup">
+    <description>Set up the label printer</description>
+    <description xml:lang="de">Etikettendrucker einrichten</description>
+    <message>Authentication is required to set up the Bluetooth port and the print queue</message>
+    <message xml:lang="de">Zum Einrichten des Bluetooth-Ports und der Druckerwarteschlange ist eine Authentifizierung nötig</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/ptouch-studio</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+
+</policyconfig>

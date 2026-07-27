@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build & test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-22.04]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build g++ qt6-base-dev libgl1-mesa-dev poppler-utils
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Check desktop file and metadata
+        run: |
+          sudo apt-get install -y desktop-file-utils
+          desktop-file-validate data/io.github.tombueng.PtouchStudio.desktop
+          python3 -c "import xml.dom.minidom as m; \
+            m.parse('data/io.github.tombueng.PtouchStudio.metainfo.xml'); \
+            m.parse('data/io.github.tombueng.PtouchStudio.policy'); \
+            print('XML ok')"
+
+  packages:
+    name: Packages (deb, rpm)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build g++ qt6-base-dev libgl1-mesa-dev rpm file
+
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_TESTING=OFF
+          cmake --build build
+
+      - name: Package
+        working-directory: build
+        run: |
+          cpack -G DEB
+          cpack -G RPM
+
+      - name: Inspect packages
+        working-directory: build
+        run: |
+          dpkg-deb -I ./*.deb
+          dpkg-deb -c ./*.deb
+          rpm -qip ./*.rpm
+
+      - name: Install the deb and run the binary
+        working-directory: build
+        run: |
+          sudo apt-get install -y ./*.deb
+          QT_QPA_PLATFORM=offscreen ptouch-studio --help
+          test -x /usr/lib/cups/backend/rfcomm
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: |
+            build/*.deb
+            build/*.rpm
+
+  appimage:
+    name: AppImage
+    runs-on: ubuntu-22.04     # older glibc = broader compatibility
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build g++ qt6-base-dev libgl1-mesa-dev \
+            libfuse2 file curl desktop-file-utils
+
+      - name: Build AppImage
+        run: packaging/appimage/build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimage
+          path: build-appimage/dist/*

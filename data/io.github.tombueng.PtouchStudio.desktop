@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=P-touch Studio
+GenericName=Label Designer
+GenericName[de]=Etikettendesigner
+Comment=Design and print labels for Brother P-touch tape cassettes
+Comment[de]=Etiketten für Brother P-touch Bandkassetten entwerfen und drucken
+Exec=ptouch-studio
+Icon=io.github.tombueng.PtouchStudio
+Terminal=false
+Categories=Office;Printing;Graphics;Qt;
+Keywords=label;tape;brother;p-touch;ptouch;printer;bluetooth;
+Keywords[de]=Etikett;Beschriftung;Band;Brother;Drucker;Bluetooth;
+StartupNotify=true
+StartupWMClass=ptouch-studio

@@ -1,0 +1,80 @@
+.TH PTOUCH-STUDIO 1 "2026-07-27" "P-touch Studio 0.1.0" "User Commands"
+.SH NAME
+ptouch-studio \- design and print labels for Brother P-touch tape cassettes
+.SH SYNOPSIS
+.B ptouch-studio
+.RI [ command ]
+.RI [ options ]
+.SH DESCRIPTION
+Prints labels on Brother P-touch label printers over Bluetooth. The width of the
+inserted tape cassette is read from the printer itself, so a label is always laid
+out for the tape that is actually loaded.
+.PP
+Started without a command, the graphical interface opens.
+.SH COMMANDS
+.TP
+.B print \fItext\fR...
+Print a label. Each argument becomes one line.
+.TP
+.B status
+Report the loaded tape, the media type and the readiness of the printer.
+Add \fB\-\-json\fR for machine-readable output.
+.TP
+.B scan
+Look for P-touch devices in range.
+.TP
+.B setup
+Find, pair and configure the printer.
+.TP
+.B check
+Check the setup and list what is missing.
+.SH PRINT OPTIONS
+.TP
+.BR \-w ", " \-\-width " " \fImm\fR
+Tape width. Without it, the printer is asked.
+.TP
+.BR \-s ", " \-\-size " " \fIpt\fR
+Font size. Without it, the size fills the printable tape height.
+.TP
+.BR \-l ", " \-\-length " " \fImm\fR
+Fixed label length instead of one that follows the text.
+.TP
+.BR \-a ", " \-\-align " " \fIleft|center|right\fR
+Horizontal alignment.
+.TP
+.BR \-m ", " \-\-margin " " \fImm\fR
+Side margin, 3 mm by default.
+.TP
+.BR \-n ", " \-\-copies " " \fIcount\fR
+Number of copies.
+.TP
+.BR \-f ", " \-\-font " " \fIname\fR
+Font family.
+.TP
+.B \-\-frame
+Draw a frame around the label.
+.TP
+.B \-\-mirror
+Mirror the label, for transparent tape read from behind.
+.TP
+.B \-\-no\-cut
+Do not cut automatically.
+.TP
+.BI \-\-pdf " file"
+Write a PDF instead of printing.
+.SH FILES
+.TP
+.I ~/.config/ptouch-studio/P-touch Studio/config.json
+Printer, queue and RFCOMM port of this user.
+.TP
+.I /etc/ptouch-studio/rfcomm.conf
+Bluetooth address and port index, written by the setup.
+.SH EXIT STATUS
+Zero on success. Non-zero when the printer is unreachable, the setup is
+incomplete or the job could not be delivered.
+.SH SEE ALSO
+.BR lp (1),
+.BR lpstat (1),
+.BR rfcomm (1)
+.PP
+https://github.com/tombueng/ptouch-studio

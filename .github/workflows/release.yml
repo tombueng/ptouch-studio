@@ -1,0 +1,126 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build a release for"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  packages:
+    name: deb & rpm
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build g++ qt6-base-dev libgl1-mesa-dev rpm poppler-utils
+
+      - name: Build and test
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_TESTING=ON
+          cmake --build build
+          ctest --test-dir build --output-on-failure
+
+      - name: Package
+        working-directory: build
+        run: |
+          cpack -G DEB
+          cpack -G RPM
+          cpack -G TGZ
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-packages
+          path: |
+            build/*.deb
+            build/*.rpm
+            build/*.tar.gz
+
+  appimage:
+    name: AppImage
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build g++ qt6-base-dev libgl1-mesa-dev \
+            libfuse2 file curl desktop-file-utils
+
+      - name: Build AppImage
+        run: packaging/appimage/build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimage
+          path: build-appimage/dist/*
+
+  publish:
+    name: Publish release
+    needs: [packages, appimage]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect files
+        run: |
+          mkdir -p release
+          find artifacts -type f \
+            \( -name '*.deb' -o -name '*.rpm' -o -name '*.tar.gz' \
+               -o -name '*.AppImage' -o -name 'ptouch-cups-backend-*' \) \
+            -exec cp {} release/ \;
+          (cd release && sha256sum * > SHA256SUMS)
+          ls -la release
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          files: release/*
+          body: |
+            ## Installation
+
+            **Debian, Ubuntu, Mint**
+            ```bash
+            sudo apt install ./ptouch-studio_*_amd64.deb
+            ```
+
+            **Fedora, openSUSE**
+            ```bash
+            sudo dnf install ./ptouch-studio-*.x86_64.rpm
+            ```
+
+            **Every other distribution (AppImage)**
+            ```bash
+            chmod +x P-touch_Studio-*.AppImage
+            ./P-touch_Studio-*.AppImage
+            ```
+            The AppImage carries the application; the CUPS backend goes into the system:
+            ```bash
+            sudo install -m 700 ptouch-cups-backend-x86_64 /usr/lib/cups/backend/rfcomm
+            ```
+
+            Then set up the printer — in the application under
+            *Printer → Setup*, or on the command line with `ptouch-studio setup`.

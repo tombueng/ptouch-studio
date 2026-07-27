@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.tombueng.PtouchStudio</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>P-touch Studio</name>
+  <summary>Design and print labels for Brother P-touch tape cassettes</summary>
+  <summary xml:lang="de">Etiketten für Brother P-touch Bandkassetten entwerfen und drucken</summary>
+
+  <description>
+    <p>
+      P-touch Studio prints labels on Brother P-touch label printers over Bluetooth,
+      without the vendor application. It reads the inserted tape cassette directly from
+      the printer, so the label is always laid out for the tape that is actually loaded.
+    </p>
+    <p xml:lang="de">
+      P-touch Studio druckt Etiketten auf Brother-P-touch-Geräten über Bluetooth, ohne
+      die Herstellersoftware. Die eingelegte Bandkassette wird direkt aus dem Drucker
+      gelesen, damit das Etikett immer zum tatsächlich eingelegten Band passt.
+    </p>
+    <ul>
+      <li>Automatic tape width detection, checked again before every print</li>
+      <li>Live preview showing the strip the print head cannot reach</li>
+      <li>Any installed font, automatic size that fills the tape height</li>
+      <li>Alignment, fixed or automatic length, margins, frame, mirroring, copies</li>
+      <li>Guided setup for pairing, Bluetooth port and print queue</li>
+    </ul>
+    <ul xml:lang="de">
+      <li>Bandbreite wird automatisch erkannt und vor jedem Druck erneut geprüft</li>
+      <li>Vorschau samt der Ränder, die der Druckkopf nicht erreicht</li>
+      <li>Jede installierte Schrift, automatische Größe füllt die Bandhöhe</li>
+      <li>Ausrichtung, feste oder automatische Länge, Ränder, Rahmen, Spiegeln, Kopien</li>
+      <li>Geführte Einrichtung von Kopplung, Bluetooth-Port und Warteschlange</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.tombueng.PtouchStudio.desktop</launchable>
+  <url type="homepage">https://github.com/tombueng/ptouch-studio</url>
+  <url type="bugtracker">https://github.com/tombueng/ptouch-studio/issues</url>
+
+  <provides>
+    <binary>ptouch-studio</binary>
+  </provides>
+
+  <categories>
+    <category>Office</category>
+    <category>Printing</category>
+  </categories>
+
+  <keywords>
+    <keyword>label</keyword>
+    <keyword>brother</keyword>
+    <keyword>p-touch</keyword>
+    <keyword>bluetooth</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.1.0" date="2026-07-27">
+      <description>
+        <p>First release.</p>
+        <p xml:lang="de">Erste Veröffentlichung.</p>
+      </description>
+    </release>
+  </releases>
+</component>

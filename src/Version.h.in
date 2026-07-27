@@ -1,0 +1,6 @@
+#pragma once
+
+#define PTOUCH_VERSION "@PROJECT_VERSION@"
+#define PTOUCH_APP_ID  "@APP_ID@"
+#define PTOUCH_APP_NAME "P-touch Studio"
+#define PTOUCH_HOMEPAGE "@PROJECT_HOMEPAGE_URL@"

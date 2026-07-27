@@ -1,0 +1,8 @@
+build/
+build-*/
+*.deb
+*.rpm
+*.AppImage
+*.tar.gz
+.cache/
+compile_commands.json
