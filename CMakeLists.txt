@@ -57,7 +57,15 @@ if(BUILD_TESTING)
 endif()
 
 # ---------------------------------------------------------------- installation
-set(CUPS_BACKEND_DIR "${CMAKE_INSTALL_LIBDIR}/cups/backend"
+# CUPS looks for its backends in a fixed place. Deriving this from
+# CMAKE_INSTALL_LIBDIR silently breaks the package on multiarch systems, where
+# that expands to lib/x86_64-linux-gnu — a path CUPS never searches.
+if(EXISTS "/usr/libexec/cups/backend")
+    set(_cups_backend_default "libexec/cups/backend")   # Fedora, openSUSE
+else()
+    set(_cups_backend_default "lib/cups/backend")       # Debian, Ubuntu, Arch
+endif()
+set(CUPS_BACKEND_DIR "${_cups_backend_default}"
     CACHE STRING "directory holding the CUPS backends")
 
 install(TARGETS ptouch-studio RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

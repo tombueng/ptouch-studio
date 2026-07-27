@@ -27,8 +27,10 @@ DESTDIR="$APPDIR" cmake --install "$BUILD"
 # The CUPS backend belongs in the system, not in the AppImage — it has to run as
 # root from /usr/lib/cups/backend. It ships alongside instead.
 mkdir -p "$BUILD/dist"
-cp "$APPDIR/usr/lib/cups/backend/rfcomm" "$BUILD/dist/ptouch-cups-backend-$ARCH"
-rm -rf "$APPDIR/usr/lib/cups"
+BACKEND="$(find "$APPDIR" -path '*/cups/backend/rfcomm' -type f | head -1)"
+[ -n "$BACKEND" ] || { echo "CUPS backend not found in AppDir" >&2; exit 1; }
+cp "$BACKEND" "$BUILD/dist/ptouch-cups-backend-$ARCH"
+rm -rf "$(dirname "$(dirname "$BACKEND")")"
 
 # files AppDir requires at its root
 cp "$APPDIR/usr/share/applications/$APP_ID.desktop" "$APPDIR/"
