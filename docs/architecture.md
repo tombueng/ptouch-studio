@@ -44,21 +44,30 @@ system x runs along the tape, y across it, origin at the top left.
 
 ### Printable height
 
-The print head does not reach the edges of the tape. These values come from
-Brother's Raster Command Reference for the PT-P700 series (180 dpi):
+The print head does not reach the edges of the tape, and two limits apply at
+once: what the tape allows, and how wide the head is. The narrower one wins.
 
-| Tape | Page width | Print dots | Printable |
+| Tape | Page width | Dots @180 dpi | Dots @360 dpi |
 |---:|---:|---:|---:|
-| 3.5 mm | 10 pt | 24 | 3.4 mm |
-| 6 mm | 17 pt | 32 | 4.5 mm |
-| 9 mm | 26 pt | 50 | 7.1 mm |
-| 12 mm | 34 pt | 70 | 9.9 mm |
-| 18 mm | 51 pt | 112 | 15.8 mm |
-| 24 mm | 68 pt | 128 | 18.1 mm |
+| 3.5 mm | 10 pt | 24 | 48 |
+| 6 mm | 17 pt | 32 | 64 |
+| 9 mm | 26 pt | 52 | 106 |
+| 12 mm | 34 pt | 76 | 150 |
+| 18 mm | 51 pt | 120 | 234 |
+| 21 mm | 60 pt | 124 | 248 |
+| 24 mm | 68 pt | 128 | 320 |
+| 36 mm | 102 pt | 192 | 454 |
 
-The text block is centred inside that strip, not on the tape as a whole. Measured
-on a PT-P710BT with 12 mm tape: 9.80 mm of ink within the 9.88 mm the head can
-reach, centred, nothing clipped.
+Head widths per model are in `printerModels()`; nearly every P-touch has 128 dots
+at 180 dpi, the exceptions being older 112 dot models and the 360 dpi PT-P900
+series with 384 to 560 dots. A 36 mm tape would take 192 dots, but a 128 dot head
+reaches only 18.06 mm of it — hence the clamp.
+
+Both tables come from
+[ptouch-print](https://dominic.familie-radermacher.ch/projekte/ptouch-print/)
+(GPL-3.0), which maintains them against real hardware. Only the figures are used,
+not the code. Verified here on a PT-P710BT with 12 mm tape: a frame drawn to the
+full 10.72 mm prints complete, top and bottom.
 
 ### Font sizes
 
@@ -77,6 +86,45 @@ A bisection search finds the largest font whose glyphs fit the printable height.
 What counts is `tightBoundingRect()` — the actual extent of the letters. The font
 metrics (`height()`) include room for ascenders and descenders that no real text
 uses in full; scaling by those wastes about a third of the tape height.
+
+## Two links, one protocol
+
+The printer speaks the same language over both connections, only the device node
+differs: `/dev/rfcomm0` for Bluetooth, `/dev/usb/lp*` for USB. `candidatePorts()`
+lists both, and USB entries are filtered by their IEEE 1284 device ID
+(`MFG:Brother;MDL:PT-P710BT;…`) — other printers share `/dev/usb/lp*`, and
+writing status commands into a stranger's printer is not harmless.
+
+USB needs markedly less machinery: no pairing, no RFCOMM service, and no custom
+CUPS backend, because CUPS' own `usb` backend does the transport. It is also far
+quicker — a label that takes 23 seconds over Bluetooth is through in under a
+second — and the printer cannot fall asleep mid-job. What both need is a udev
+rule, since the kernel hands printer nodes to group `lp` alone.
+
+## The cutter sits behind the print head
+
+Two consequences, both learned the hard way on a PT-P710BT:
+
+**At the end of a label** the tape must travel the distance between head and
+cutter before it can be cut, otherwise the last millimetres are cut away
+unprinted — the label comes out shorter than calculated. Every job therefore
+carries `ExtraMargin=5mm`. With a frame drawn to the edge, the closing line was
+missing at 0 mm and complete at 5 mm.
+
+`ExtraMargin` sets what the driver calls the top and bottom margin, so it applies
+to both ends. Measured on a PT-P710BT with a 3 mm side margin in the layout: 6 mm
+from the cut to the frame at the front, 5 mm at the back. The remaining
+millimetre is the accuracy of the cut itself and not worth chasing.
+
+**At the start of a label** the same distance is unavoidable waste: after a cut
+the tape begins at the cutter, not at the head, so tape runs through unprinted
+before the first dot can be set. Nothing in software prevents that — only cutting
+less often does. Printing several labels with `AutoCut=False` pays that toll once
+instead of once per label.
+
+The side margin in the layout adds to both ends on top of this. At 3 mm it is the
+larger half of the waste on short labels; anyone printing many small labels
+should turn it down before touching anything else.
 
 ## Status protocol
 

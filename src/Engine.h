@@ -7,6 +7,8 @@
 
 #include <QFont>
 #include <QImage>
+
+#include "Graphics.h"
 #include <QList>
 #include <QString>
 #include <QStringList>
@@ -22,19 +24,38 @@ constexpr double PtPerMm = 72.0 / 25.4;
 // by a factor of DPI/72. One unit = 1/UnitsPerPt point.
 constexpr int UnitsPerPt = 10;
 
-constexpr int HeadDpi = 180;
+// Resolution assumed when no model is known — nearly every P-touch prints at 180 dpi.
+constexpr int HeadDpiDefault = 180;
+
 
 struct Tape {
     double widthMm;
-    int pageWidthPt;   // page width according to the PPD
-    int printableDots; // what the print head can actually blacken on this tape
+    int pageWidthPt;   // page width for CUPS
+    int dots180;       // printable dots on a 180 dpi head
+    int dots360;       // printable dots on a 360 dpi head
 };
 
-// The printable dot counts come from Brother's Raster Command Reference: the head
-// never reaches the full tape width, a margin stays blank along both edges.
+struct PrinterModel {
+    QString name;      // as Brother writes it, e.g. "PT-P710BT"
+    int headDots;      // width of the print head
+    int dpi;
+};
+
+// The head never reaches the full tape width — a margin stays blank along both
+// edges. These figures, and the head widths below, are taken from ptouch-print
+// by Dominic Radermacher (GPL-3.0, https://dominic.familie-radermacher.ch/
+// projekte/ptouch-print/), which maintains them against real hardware. Only the
+// numbers are used here; none of its code is.
 const QList<Tape> &tapes();
 const Tape *tapeFor(double widthMm);
 int tapeIndex(double widthMm);   // position in tapes(), -1 if unknown
+
+const QList<PrinterModel> &printerModels();
+// Longest model whose name the given device name starts with — Bluetooth names
+// carry a serial number ("PT-P710BT3015"), so an exact match will not do.
+const PrinterModel *modelFor(const QString &deviceName);
+constexpr int DefaultHeadDots = 128;   // what nearly every P-touch has
+constexpr int DefaultDpi = 180;
 
 enum class Align { Left, Center, Right };
 
@@ -55,14 +76,34 @@ struct Spec {
     bool mirror = false;
     bool autocut = true;
     int copies = 1;
+    QString model;     // empty means "assume a 128 dot, 180 dpi head"
+
+    // Optional artwork beside the text: an imported picture or a code. Both are
+    // scaled to the printable height and placed on the chosen side.
+    enum class Side { Left, Right };
+    QString picturePath;
+    CodeType codeType = CodeType::None;
+    QString codeData;
+    Side artworkSide = Side::Left;
+    bool rotated = false;   // text and artwork turned 90°, for wide tape
 
     QStringList lines() const;
-    double tapePt() const;
+    double tapePt() const;        // physical tape width
     double printablePt() const;   // height the print head can blacken
+
+    // Width of the page handed to CUPS. Never wider than the print head: the
+    // driver drops whatever exceeds it, and from one side only, which shifts the
+    // whole label. On tape narrower than the head this is the tape width, so
+    // nothing changes there — the clamp only bites on 24 mm and wider.
+    double pagePt() const;
+    double headPt() const;   // width of the print head
 };
 
 struct Layout {
     QFont font;
+    QImage artwork;        // picture or code, already monochrome
+    double artworkWidth = 0;   // space it occupies, in points
+    QString artworkError;
     double sizePt = 0;
     double lengthPt = 0;
     double lineHeight = 0;

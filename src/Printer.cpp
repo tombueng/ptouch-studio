@@ -39,16 +39,52 @@ QString parseJobId(const QString &output)
     return m.hasMatch() ? m.captured(1) : QString();
 }
 
+// The cutter sits a few millimetres behind the print head. Without extra feed the
+// tape is cut before the end of the label has travelled that far: the label comes
+// out shorter than calculated, and anything drawn near the end is lost. Verified
+// on a PT-P710BT — with a frame drawn to the edge, the closing line was missing
+// at 0 mm and complete at 5 mm.
+constexpr int CutterFeedMm = 5;
+
+// Cutting is driven by two independent driver options, and both matter:
+//
+//   AutoCut   cut between pages          (ESC i M, bit 6)
+//   AutoEject feed and cut when the job ends, i.e. "noChainPrinting"
+//                                        (ESC i K, bit 3)
+//
+// AutoEject defaults to True in the PPD, so *every* job ends with a cut no
+// matter what AutoCut says. Copies therefore have to travel in a single job:
+// two jobs mean two job ends, and the tape is cut between them.
+//
+// Several copies are printed as one continuous strip and cut once at the end:
+// each cut costs the 20-odd millimetres the tape needs to travel from head to
+// cutter, so cutting per label can waste more tape than the labels use.
 QStringList lpArguments(const Spec &spec, const PageSize &page,
-                        const QString &printer, const QString &pdfPath)
+                        const QString &printer, const QString &pdfPath,
+                        int copies)
 {
+    const int sheets = std::max(1, copies);
+    // A single label has no "between" to cut; a run of copies stays joined and
+    // is severed once, when the job ends.
+    const bool cutBetween = spec.autocut && sheets == 1;
     // Mirroring is already baked into the PDF so the preview stays truthful.
     return {QStringLiteral("-d"), printer,
-            QStringLiteral("-n"), QString::number(std::max(1, spec.copies)),
+            QStringLiteral("-n"), QString::number(sheets),
             QStringLiteral("-o"), QStringLiteral("PageSize=Custom.%1x%2")
                                       .arg(page.widthPt).arg(page.heightPt),
             QStringLiteral("-o"), QStringLiteral("MirrorPrint=False"),
+            // The page is as wide as the print head, which on wide tape is
+            // narrower than the cassette. The driver's own check would reject
+            // that — we ask the printer for the tape width ourselves, before
+            // every job, which is the better guard anyway.
+            QStringLiteral("-o"), QStringLiteral("RequireMatchingLabelSize=False"),
+            QStringLiteral("-o"), QStringLiteral("ExtraMargin=%1mm").arg(CutterFeedMm),
             QStringLiteral("-o"), QStringLiteral("AutoCut=%1")
+                                      .arg(cutBetween ? QStringLiteral("True")
+                                                      : QStringLiteral("False")),
+            // Without this the tape is cut at the end of the job even when the
+            // user asked for no cut at all.
+            QStringLiteral("-o"), QStringLiteral("AutoEject=%1")
                                       .arg(spec.autocut ? QStringLiteral("True")
                                                         : QStringLiteral("False")),
             pdfPath};
@@ -107,8 +143,9 @@ void PrintJob::start(const Spec &spec, const Layout &layout, const QString &prin
     emit progress(QStringLiteral("Submitting job …"));
 
     int code = 0;
-    const QString out = runCommand(QStringLiteral("lp"),
-                                   lpArguments(spec, page, printer, m_pdfPath), &code);
+    const QString out = runCommand(
+        QStringLiteral("lp"),
+        lpArguments(spec, page, printer, m_pdfPath, m_copies), &code);
     if (code != 0) {
         done(false, out.trimmed().isEmpty()
                         ? QStringLiteral("lp refused the job.")
@@ -170,9 +207,10 @@ PrintResult printAndWait(const Spec &spec, const Layout &layout, const QString &
     const QString pdf = tempPdfPath();
     const PageSize page = writePdf(pdf, spec, layout);
 
+    const int copies = std::max(1, spec.copies);
     int code = 0;
-    const QString out = runCommand(QStringLiteral("lp"),
-                                   lpArguments(spec, page, printer, pdf), &code);
+    const QString out = runCommand(
+        QStringLiteral("lp"), lpArguments(spec, page, printer, pdf, copies), &code);
     if (code != 0) {
         QFile::remove(pdf);
         result.message = out.trimmed();

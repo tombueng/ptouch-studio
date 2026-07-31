@@ -55,6 +55,7 @@ void PreviewWidget::paintEvent(QPaintEvent *)
 
     // Zones the print head cannot reach
     const double edge = (m_spec.tapePt() - m_spec.printablePt()) / 2 * scale;
+    const double pageTop = (m_spec.tapePt() - m_spec.pagePt()) / 2 * scale;
     p.setBrush(QColor(224, 231, 238));
     p.drawRect(QRectF(0, 0, w, edge));
     p.drawRect(QRectF(0, h - edge, w, edge));
@@ -64,6 +65,7 @@ void PreviewWidget::paintEvent(QPaintEvent *)
     p.drawRect(QRectF(0, 0, w, h));
 
     p.save();
+    p.translate(0, pageTop);      // the page sits centred on the tape
     p.scale(scale, scale);
     if (m_spec.mirror) {
         p.translate(m_layout.lengthPt, 0);
@@ -79,7 +81,7 @@ void PreviewWidget::paintEvent(QPaintEvent *)
     info.setPointSizeF(std::max(8.0, info.pointSizeF() - 1));
     p.setFont(info);
     p.drawText(QRectF(0, height() - 22, width(), 20), Qt::AlignCenter,
-               QStringLiteral("%1 × %2 mm · font %3 pt · printable %4 mm")
+               tr("%1 × %2 mm · font %3 pt · printable %4 mm")
                    .arg(m_layout.lengthPt / PtPerMm, 0, 'f', 0)
                    .arg(m_spec.tapeMm, 0, 'g', 3)
                    .arg(m_layout.sizePt, 0, 'f', 1)

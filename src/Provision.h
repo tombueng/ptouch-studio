@@ -18,6 +18,19 @@ struct Device {
     QString model;
 };
 
+// How the printer is attached. USB needs no pairing, no RFCOMM service and no
+// custom CUPS backend — the kernel and CUPS' own usb backend do that work.
+enum class Link { Bluetooth, Usb };
+
+struct UsbPrinter {
+    QString uri;        // usb://Brother/PT-P710BT?serial=...
+    QString model;      // PT-P710BT
+    QString devicePath; // /dev/usb/lp2, for the tape query
+};
+
+// Brother label printers currently plugged in.
+QList<UsbPrinter> scanUsbPrinters();
+
 struct SetupState {
     bool haveBluetoothctl = false;
     bool haveRfcomm = false;
@@ -32,6 +45,7 @@ struct SetupState {
     bool cupsBackend = false;
     bool queuePresent = false;
 
+    Link link = Link::Bluetooth;
     QString device;
     QString queue;
     QString mac;
@@ -41,8 +55,12 @@ struct SetupState {
         return haveBluetoothctl && haveRfcomm && haveLp && haveDriver;
     }
     bool ready() const {
-        return dependenciesOk() && paired && rfcommActive && deviceAccessible
-               && cupsBackend && queuePresent;
+        if (!dependenciesOk() || !deviceAccessible || !queuePresent)
+            return false;
+        // Over USB the kernel provides the device and CUPS the transport.
+        if (link == Link::Usb)
+            return true;
+        return paired && rfcommActive && cupsBackend;
     }
     QStringList missingSteps() const;
 };
@@ -65,9 +83,16 @@ int installSystem(const QString &mac, const QString &model, const QString &queue
                   int index, int channel, const QString &owner,
                   const std::function<void(const QString &)> &log);
 
-// Command line the interface uses to trigger the system part through pkexec.
+// USB counterpart: a udev rule for the printer node plus a CUPS queue.
+int installSystemUsb(const QString &uri, const QString &model, const QString &queue,
+                     const QString &owner,
+                     const std::function<void(const QString &)> &log);
+
+// Command lines the interface uses to trigger the system part through pkexec.
 QStringList systemSetupCommand(const QString &mac, const QString &model,
                                const QString &queue, const QString &owner);
+QStringList systemSetupCommandUsb(const QString &uri, const QString &model,
+                                  const QString &queue, const QString &owner);
 
 constexpr const char *DefaultQueue = "PT-Label";
 

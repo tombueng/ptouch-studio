@@ -29,6 +29,14 @@ the device directly — before every print.
   glyphs rather than from the font metrics.
 - Any installed font, alignment, fixed or growing length, margins, line spacing,
   frame, mirroring for transparent tape, copies.
+- **Pictures, QR codes and barcodes** beside the text, on either side and scaled
+  to the printable height. Barcodes are sized by module width rather than by the
+  space available — a bar squeezed below a quarter millimetre is unreadable, and
+  the application says so before the tape is spent.
+- **Batch printing** from a list: one label per line, `|` splits lines within a
+  label. Combined with a single cut at the end this is the cheap way to label a
+  whole shelf.
+- **Templates** for recurring labels — everything except the text is kept.
 - **Symbols and emoji**, inserted from a palette. Outline symbols (★ ⚠ ✓ → Ω €)
   print as crisp vectors; pictographs such as 🔧 📦 come from a colour bitmap font
   that no PDF can embed, so those labels are rendered as a greyscale image instead
@@ -36,6 +44,8 @@ the device directly — before every print.
 - **Guided setup**: find the device, pair it, create the Bluetooth port and the
   print queue — from inside the application.
 - **Command line** for batches and scripts.
+- **Localised** interface: English, German, French, Spanish, Italian, Dutch and
+  Polish, chosen automatically from the system language.
 
 ## Installation
 
@@ -86,7 +96,8 @@ cmake --build build
 sudo cmake --install build
 ```
 
-Needs Qt 6.2 or newer, a C++20 compiler and CMake ≥ 3.21. At runtime it wants
+Needs Qt 6.2 or newer, a C++20 compiler and CMake ≥ 3.21. `libqrencode` is
+optional — without it everything works except QR codes. At runtime it wants
 `bluez`, `cups` and the P-touch driver (`printer-driver-ptouch` on Debian and
 Ubuntu, `ptouch-driver` on Fedora and Arch).
 
@@ -116,6 +127,11 @@ ptouch-studio print "Line 1" "Line 2"      # several lines
 ptouch-studio print -w 24 -a left "Shelf A"
 ptouch-studio print -n 3 "Three times"
 ptouch-studio print --pdf sample.pdf "Test"   # check without spending tape
+
+ptouch-studio print --qr "https://example.org" "Wiki"
+ptouch-studio print --barcode "ABC-12345" "Stock"
+ptouch-studio print --image logo.png --artwork-right "Workshop"
+ptouch-studio print --from-file shelves.txt     # one label per line
 
 ptouch-studio status                       # loaded tape, media, readiness
 ptouch-studio status --json                # for scripts
@@ -182,6 +198,36 @@ More in [docs/architecture.md](docs/architecture.md).
 | Queue stopped | `cupsenable PT-Label` |
 
 More in [docs/troubleshooting.md](docs/troubleshooting.md).
+
+## Translations
+
+The interface follows the system language. English is the source; German is
+maintained alongside it. French, Spanish, Italian, Dutch and Polish are provided
+as a starting point and would benefit from review by native speakers — the files
+live in `translations/` and open in Qt Linguist.
+
+Adding a language means adding it to `TRANSLATION_LANGUAGES` in `CMakeLists.txt`,
+running `lupdate`, and filling in the new catalogue.
+
+## Related projects
+
+This project stands on the shoulders of two others, and it is worth knowing both:
+
+**[ptouch-print](https://dominic.familie-radermacher.ch/projekte/ptouch-print/)**
+by Dominic Radermacher (GPL-3.0) talks to P-touch printers directly over **USB**,
+without CUPS, and takes PNG images or text on the command line. It also maintains
+the table of print head widths and printable tape areas that this project's
+geometry now builds on — those figures come from there and are verified against
+real hardware across two dozen models. None of its code is used here; the two
+programs take opposite routes to the same printers.
+
+**[brother-ptouch-label-printer-on-linux](https://github.com/HenrikBengtsson/brother-ptouch-label-printer-on-linux)**
+by Henrik Bengtsson collects the practical knowledge around `ptouch-print`:
+building it, udev permissions, image formats, model quirks. If your printer is
+connected by USB and you prefer the command line, start there.
+
+P-touch Studio covers what those two do not: Bluetooth, a CUPS queue, a graphical
+editor, and reading the loaded tape from the printer before every print.
 
 ## License
 

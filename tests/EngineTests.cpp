@@ -92,17 +92,28 @@ Ink measurePdf(const QString &pdfPath, const QString &workDir)
 
 void testTapeTable()
 {
-    check(tapes().size() == 6, "six tape widths known");
+    check(tapes().size() == 8, "eight tape widths known");
     check(tapeFor(12.0) != nullptr, "12 mm is a known tape width");
     check(tapeFor(13.0) == nullptr, "13 mm is not a known tape width");
-    check(tapeIndex(24.0) == 5, "24 mm is the last entry");
+    check(tapeIndex(24.0) == 6, "24 mm sits between 21 and 36 mm");
 
     Spec s;
     s.tapeMm = 12.0;
     checkNear(s.tapePt(), 34.0, 0.01, "12 mm tape is 34 pt wide");
-    checkNear(s.printablePt() / PtPerMm, 9.88, 0.05, "12 mm tape: printable height");
+    checkNear(s.printablePt() / PtPerMm, 10.73, 0.05, "12 mm tape: printable height");
     s.tapeMm = 24.0;
     checkNear(s.printablePt() / PtPerMm, 18.06, 0.05, "24 mm tape: printable height");
+
+    // The head is the limit whenever the tape could take more: 36 mm tape would
+    // allow 192 dots, but a 128 dot head reaches only 18.06 mm of it.
+    s.tapeMm = 36.0;
+    s.model = QStringLiteral("PT-P710BT");
+    checkNear(s.printablePt() / PtPerMm, 18.06, 0.05, "128 dot head limits wide tape");
+    s.model = QStringLiteral("PT-P900Wc");
+    checkNear(s.printablePt() / PtPerMm, 32.0, 0.6, "360 dpi head prints wider");
+    s.tapeMm = 12.0;
+    s.model = QStringLiteral("PT-2300");           // 112 dot head
+    checkNear(s.printablePt() / PtPerMm, 10.73, 0.05, "narrow head, narrow tape unaffected");
 }
 
 void testAutoSizeFillsTape()
@@ -174,7 +185,7 @@ void testPdfGeometry(const QString &workDir)
         return;
     }
     checkNear(ink.pageWidthMm, 12.0, 0.15, "rasterised page is 12 mm wide");
-    checkNear(ink.acrossMm, 9.8, 0.7, "ink uses the printable tape height");
+    checkNear(ink.acrossMm, 10.6, 0.8, "ink uses the printable tape height");
     checkNear(ink.marginTopMm, ink.marginBottomMm, 0.5, "text is centred on the tape");
     // The measured margin is the configured one plus the glyph's side bearing,
     // which depends on the first and last letter — hence the generous tolerance.
@@ -208,6 +219,42 @@ void testGlyphDetection()
                 ++dark;
     check(dark > 500, "rendered image contains the pictograph");
     check(image.format() == QImage::Format_Grayscale8, "image is greyscale for the tape");
+}
+
+void testArtwork()
+{
+    // A barcode has to be sized by module width, not by available space: below
+    // roughly a quarter millimetre per bar no scanner reads it.
+    Spec bc;
+    bc.tapeMm = 12.0;
+    bc.text = QStringLiteral("Stock");
+    bc.codeType = CodeType::Code128;
+    bc.codeData = QStringLiteral("ABC-12345");
+    const Layout lbc = computeLayout(bc);
+    check(!lbc.artwork.isNull(), "barcode is rendered");
+    const double moduleMm = lbc.artworkWidth / std::max(1, lbc.artwork.width()) / PtPerMm;
+    checkNear(moduleMm, 0.28, 0.05, "barcode modules are wide enough to scan");
+    check(lbc.lengthPt > bc.marginMm * 2 * PtPerMm + lbc.artworkWidth,
+          "label grew to hold barcode and text");
+
+    // Code 128 set B is ASCII only; anything else has to be refused rather than
+    // silently mangled.
+    QString error;
+    check(renderCode(CodeType::Code128, QStringLiteral("Grüße"), &error).isNull()
+              && !error.isEmpty(), "non-ASCII is rejected for Code 128");
+
+    if (qrAvailable()) {
+        Spec qr;
+        qr.tapeMm = 24.0;
+        qr.codeType = CodeType::Qr;
+        qr.codeData = QStringLiteral("https://example.org");
+        const Layout lqr = computeLayout(qr);
+        check(!lqr.artwork.isNull(), "QR code is rendered");
+        check(lqr.artwork.width() == lqr.artwork.height(), "QR code is square");
+        checkNear(lqr.artworkWidth, qr.printablePt(), 1.0, "QR code fills the tape height");
+    } else {
+        std::printf("skipped: built without libqrencode\n");
+    }
 }
 
 void testStatusDecoding()
@@ -244,6 +291,7 @@ int main(int argc, char *argv[])
     testOverflowDetected();
     testPdfGeometry(dir.path());
     testGlyphDetection();
+    testArtwork();
     testStatusDecoding();
 
     std::printf("\n%s\n", failures == 0 ? "all checks passed"

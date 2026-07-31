@@ -4,7 +4,10 @@
 
 #include <QApplication>
 #include <QIcon>
+#include <QLibraryInfo>
+#include <QLocale>
 #include <QStringList>
+#include <QTranslator>
 
 int main(int argc, char *argv[])
 {
@@ -19,6 +22,17 @@ int main(int argc, char *argv[])
     QApplication::setApplicationVersion(QStringLiteral(PTOUCH_VERSION));
     QApplication::setOrganizationName(QStringLiteral("ptouch-studio"));
     QApplication::setDesktopFileName(QStringLiteral(PTOUCH_APP_ID));
+
+    // Follow the system language; English is the source and needs no catalogue.
+    QTranslator qtTranslator;
+    if (qtTranslator.load(QLocale(), QStringLiteral("qtbase"), QStringLiteral("_"),
+                          QLibraryInfo::path(QLibraryInfo::TranslationsPath)))
+        QApplication::installTranslator(&qtTranslator);
+
+    QTranslator translator;
+    if (translator.load(QLocale(), QStringLiteral("ptouch-studio"), QStringLiteral("_"),
+                        QStringLiteral(":/i18n")))
+        QApplication::installTranslator(&translator);
 
     const QStringList arguments = QApplication::arguments();
     if (arguments.size() > 1)

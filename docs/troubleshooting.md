@@ -55,6 +55,26 @@ port was released in the meantime. When in doubt:
 sudo systemctl restart ptouch-rfcomm.service
 ```
 
+## The printer blinks red and refuses to settle
+
+Ask it what is wrong:
+
+```bash
+ptouch-studio status
+```
+
+A mismatch between the job and the loaded tape is the usual cause — the printer
+rejects the job and stays in that state afterwards.
+
+**It has to be switched off and on again.** That is not a shortcut: the reset
+command of the protocol (`ESC @`, available as `ptouch-studio reset`) clears the
+data buffer but not the error state, and neither does a subsequent valid job.
+Measured on a PT-P710BT: after a deliberate tape mismatch, `ESC @` left
+`error 0x01 / status type 2` untouched, a correct label printed fine and the bit
+still stood, and the lamp kept blinking until the power was cut.
+
+`ptouch-studio reset` remains useful for a stuck buffer or an aborted transfer.
+
 ## The job stays in the queue
 
 If the printer was unreachable when the job was submitted, CUPS holds it for 300

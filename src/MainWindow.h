@@ -14,9 +14,11 @@ class QComboBox;
 class QDoubleSpinBox;
 class QFontComboBox;
 class QLabel;
+class QMenu;
 class QPlainTextEdit;
 class QProgressBar;
 class QPushButton;
+class QLineEdit;
 class QSpinBox;
 class QTimer;
 
@@ -38,6 +40,11 @@ protected:
 
 private slots:
     void refresh();
+    void chooseArtwork();
+    void artworkKindChanged();
+    void saveTemplate();
+    void loadTemplate();
+    void manageTemplates();
     void tapeChanged();
     void adoptDetectedTape();
     void detectTape(bool quiet = true);
@@ -55,6 +62,9 @@ private:
     void setBusy(bool busy, const QString &message = QString());
     void restoreSettings();
     void storeSettings() const;
+    // Templates keep everything except the text, which is what usually changes.
+    void applySpec(const Spec &spec);
+    QMenu *m_templateMenu = nullptr;
 
     Config m_config;
     Spec m_spec;
@@ -80,6 +90,10 @@ private:
     QCheckBox *m_mirror = nullptr;
     QCheckBox *m_cut = nullptr;
     QSpinBox *m_copies = nullptr;
+    QComboBox *m_artworkKind = nullptr;
+    QLineEdit *m_artworkData = nullptr;
+    QPushButton *m_artworkBrowse = nullptr;
+    QComboBox *m_artworkSide = nullptr;
     QLabel *m_warning = nullptr;
     QPushButton *m_printButton = nullptr;
     QPushButton *m_pdfButton = nullptr;

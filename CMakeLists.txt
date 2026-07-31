@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(ptouch-studio
-    VERSION 0.2.0
+    VERSION 0.3.0
     DESCRIPTION "Design and print labels for Brother P-touch tape cassettes"
     HOMEPAGE_URL "https://github.com/tombueng/ptouch-studio"
     LANGUAGES CXX)
@@ -17,20 +17,34 @@ endif()
 
 # 6.2 is what Ubuntu 22.04 ships; nothing here needs anything newer.
 find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6 6.2 QUIET COMPONENTS LinguistTools)
 
 set(APP_ID "io.github.tombueng.PtouchStudio")
 configure_file(src/Version.h.in ${CMAKE_CURRENT_BINARY_DIR}/Version.h @ONLY)
 
 # ---------------------------------------------------------------- library
 # Core without any interface dependency, so tests and the CLI can share it.
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(QRENCODE IMPORTED_TARGET libqrencode)
+endif()
+
 add_library(ptouch-core STATIC
     src/Engine.cpp
+    src/Graphics.cpp
     src/Status.cpp
     src/Config.cpp
     src/Printer.cpp
     src/Provision.cpp)
 target_include_directories(ptouch-core PUBLIC src ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(ptouch-core PUBLIC Qt6::Core Qt6::Gui)
+if(QRENCODE_FOUND)
+    target_link_libraries(ptouch-core PRIVATE PkgConfig::QRENCODE)
+    target_compile_definitions(ptouch-core PRIVATE PTOUCH_HAVE_QRENCODE)
+    message(STATUS "QR codes enabled (libqrencode ${QRENCODE_VERSION})")
+else()
+    message(STATUS "libqrencode not found — building without QR codes")
+endif()
 
 # ---------------------------------------------------------------- application
 add_executable(ptouch-studio
@@ -39,6 +53,8 @@ add_executable(ptouch-studio
     src/PreviewWidget.cpp
     src/SetupDialog.cpp
     src/Cli.cpp)
+# ScanWorker is declared inside SetupDialog.cpp, so moc has to look there too.
+set_property(SOURCE src/SetupDialog.cpp PROPERTY SKIP_AUTOMOC OFF)
 target_link_libraries(ptouch-studio PRIVATE ptouch-core Qt6::Widgets)
 
 # ---------------------------------------------------------------- CUPS backend
@@ -46,6 +62,22 @@ target_link_libraries(ptouch-studio PRIVATE ptouch-core Qt6::Widgets)
 # RFCOMM port (non-blocking open, missing modem control lines).
 add_executable(cups-backend-rfcomm src/CupsBackend.cpp)
 set_target_properties(cups-backend-rfcomm PROPERTIES OUTPUT_NAME rfcomm)
+
+# ---------------------------------------------------------------- translations
+# German is maintained alongside English; the others are a starting point and
+# welcome corrections from native speakers.
+set(TRANSLATION_LANGUAGES de fr es it nl pl)
+if(Qt6LinguistTools_FOUND)
+    set(TS_FILES "")
+    foreach(lang ${TRANSLATION_LANGUAGES})
+        list(APPEND TS_FILES "${CMAKE_CURRENT_SOURCE_DIR}/translations/ptouch-studio_${lang}.ts")
+    endforeach()
+    qt_add_translations(ptouch-studio
+        TS_FILES ${TS_FILES}
+        RESOURCE_PREFIX "/i18n")
+else()
+    message(STATUS "Qt LinguistTools not found — building without translations")
+endif()
 
 # ---------------------------------------------------------------- tests
 include(CTest)

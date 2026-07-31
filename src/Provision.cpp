@@ -1,6 +1,7 @@
 #include "Provision.h"
 
 #include "Config.h"
+#include "Status.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -10,6 +11,7 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QStandardPaths>
+#include <QUrl>
 #include <QTextStream>
 #include <QThread>
 
@@ -19,6 +21,7 @@ namespace ptouch {
 namespace {
 
 constexpr const char *UdevRulePath = "/etc/udev/rules.d/70-ptouch-rfcomm.rules";
+constexpr const char *UsbUdevRulePath = "/etc/udev/rules.d/70-ptouch-usb.rules";
 constexpr const char *SystemdUnitPath = "/etc/systemd/system/ptouch-rfcomm.service";
 
 // Bluetooth names start with the model designation, usually with a serial number
@@ -67,6 +70,17 @@ QString udevRule(const QString &owner)
         "# and for the logged-in desktop user. Group membership alone is not enough —\n"
         "# it only takes effect after the next login.\n"
         "KERNEL==\"rfcomm[0-9]*\", GROUP=\"lp\", MODE=\"0660\", TAG+=\"uaccess\"%1\n")
+        .arg(owner.isEmpty() ? QString() : QStringLiteral(", OWNER=\"%1\"").arg(owner));
+}
+
+QString usbUdevRule(const QString &owner)
+{
+    return QStringLiteral(
+        "# P-touch Studio: Brother label printers on USB (vendor 04f9). The kernel\n"
+        "# hands these to group lp only, but reading the loaded tape happens from\n"
+        "# the desktop session.\n"
+        "SUBSYSTEM==\"usbmisc\", KERNEL==\"lp[0-9]*\", ATTRS{idVendor}==\"04f9\", "
+        "GROUP=\"lp\", MODE=\"0660\", TAG+=\"uaccess\"%1\n")
         .arg(owner.isEmpty() ? QString() : QStringLiteral(", OWNER=\"%1\"").arg(owner));
 }
 
@@ -146,20 +160,28 @@ QStringList SetupState::missingSteps() const
 {
     QStringList todo;
     QStringList missing;
-    if (!haveBluetoothctl) missing << QStringLiteral("bluez");
-    if (!haveRfcomm)       missing << QStringLiteral("bluez (rfcomm)");
-    if (!haveLp)           missing << QStringLiteral("cups-client");
-    if (!haveDriver)       missing << QStringLiteral("printer-driver-ptouch");
+    if (!haveLp)     missing << QStringLiteral("cups-client");
+    if (!haveDriver) missing << QStringLiteral("printer-driver-ptouch");
+    if (link == Link::Bluetooth) {
+        if (!haveBluetoothctl) missing << QStringLiteral("bluez");
+        if (!haveRfcomm)       missing << QStringLiteral("bluez (rfcomm)");
+    }
     if (!missing.isEmpty())
         todo << QStringLiteral("install packages: %1").arg(missing.join(QStringLiteral(", ")));
-    if (!paired)
-        todo << QStringLiteral("pair the printer");
-    if (!(udevRule && systemdUnit && rfcommActive))
-        todo << QStringLiteral("set up the RFCOMM port");
-    else if (!deviceAccessible)
-        todo << QStringLiteral("fix the port permissions");
-    if (!cupsBackend)
-        todo << QStringLiteral("install the CUPS backend");
+
+    if (link == Link::Bluetooth) {
+        if (!paired)
+            todo << QStringLiteral("pair the printer");
+        if (!(udevRule && systemdUnit && rfcommActive))
+            todo << QStringLiteral("set up the RFCOMM port");
+        else if (!deviceAccessible)
+            todo << QStringLiteral("fix the port permissions");
+        if (!cupsBackend)
+            todo << QStringLiteral("install the CUPS backend");
+    } else if (!deviceAccessible) {
+        todo << QStringLiteral("fix the permissions on %1").arg(device);
+    }
+
     if (!queuePresent)
         todo << QStringLiteral("create the print queue");
     return todo;
@@ -189,6 +211,9 @@ SetupState checkSetup()
     s.queue = cfg.printer;
     s.mac = cfg.mac;
     s.model = cfg.model;
+    // The configured device decides which half of the setup has to be in place.
+    s.link = cfg.device.startsWith(QStringLiteral("/dev/usb/")) ? Link::Usb
+                                                                : Link::Bluetooth;
 
     const auto have = [](const QString &tool) {
         return !QStandardPaths::findExecutable(tool).isEmpty();
@@ -270,6 +295,98 @@ bool pairDevice(const QString &mac, QString *output)
     if (output)
         *output = log.trimmed();
     return info.contains(QStringLiteral("Paired: yes"));
+}
+
+QList<UsbPrinter> scanUsbPrinters()
+{
+    QList<UsbPrinter> printers;
+
+    // CUPS knows the device URIs; the kernel nodes carry the IEEE 1284 ID.
+    const QString uris = run(QStringLiteral("lpinfo"), {QStringLiteral("-v")});
+    QStringList brotherUris;
+    for (const QString &line : uris.split(QLatin1Char('\n'))) {
+        if (line.contains(QStringLiteral("usb://"), Qt::CaseInsensitive)
+            && line.contains(QStringLiteral("brother"), Qt::CaseInsensitive))
+            brotherUris << line.section(QLatin1Char(' '), 1).trimmed();
+    }
+
+    const QList<Port> ports = candidatePorts();
+    for (const QString &uri : std::as_const(brotherUris)) {
+        UsbPrinter printer;
+        printer.uri = uri;
+        static const QRegularExpression modelInUri(QStringLiteral("usb://[^/]+/([^?]+)"));
+        const auto m = modelInUri.match(uri);
+        if (m.hasMatch())
+            printer.model = QUrl::fromPercentEncoding(m.captured(1).toUtf8());
+
+        // Match the kernel node by model name; falls back to the first USB port.
+        for (const Port &port : ports) {
+            if (!port.usb)
+                continue;
+            if (printer.devicePath.isEmpty() || port.model == printer.model)
+                printer.devicePath = port.path;
+        }
+        printers << printer;
+    }
+    return printers;
+}
+
+int installSystemUsb(const QString &uri, const QString &model, const QString &queue,
+                     const QString &owner,
+                     const std::function<void(const QString &)> &log)
+{
+    if (::geteuid() != 0) {
+        log(QStringLiteral("This step needs administrator rights."));
+        return 1;
+    }
+    QString error;
+
+    log(QStringLiteral("udev rule %1").arg(QString::fromLatin1(UsbUdevRulePath)));
+    if (!writeFile(QString::fromLatin1(UsbUdevRulePath), usbUdevRule(owner), &error)) {
+        log(QStringLiteral("  failed: %1").arg(error));
+        return 1;
+    }
+    run(QStringLiteral("udevadm"), {QStringLiteral("control"), QStringLiteral("--reload")});
+    run(QStringLiteral("udevadm"), {QStringLiteral("trigger"),
+                                    QStringLiteral("--subsystem-match=usbmisc")});
+
+    const DriverMatch driver = findDriver(model);
+    if (driver.ppd.isEmpty()) {
+        log(QStringLiteral("No P-touch driver found — please install printer-driver-ptouch "
+                           "(or ptouch-driver)."));
+        return 2;
+    }
+
+    log(QStringLiteral("queue %1 using %2").arg(queue, driver.ppd));
+    int code = 0;
+    const QString lpadmin = run(
+        QStringLiteral("lpadmin"),
+        {QStringLiteral("-p"), queue, QStringLiteral("-E"),
+         QStringLiteral("-v"), uri,
+         QStringLiteral("-m"), driver.ppd,
+         QStringLiteral("-D"), QStringLiteral("Brother %1 (USB)")
+                                   .arg(model.isEmpty() ? QStringLiteral("P-touch") : model),
+         QStringLiteral("-L"), QStringLiteral("USB")}, &code);
+    if (code != 0) {
+        log(QStringLiteral("  lpadmin: %1").arg(lpadmin.trimmed()));
+        return 3;
+    }
+    run(QStringLiteral("cupsenable"), {queue});
+    run(QStringLiteral("cupsaccept"), {queue});
+
+    log(QStringLiteral("Done — no RFCOMM service or custom backend needed over USB."));
+    return 0;
+}
+
+QStringList systemSetupCommandUsb(const QString &uri, const QString &model,
+                                  const QString &queue, const QString &owner)
+{
+    return {QCoreApplication::applicationFilePath(),
+            QStringLiteral("setup-system"),
+            QStringLiteral("--usb"), uri,
+            QStringLiteral("--model"), model,
+            QStringLiteral("--queue"), queue,
+            QStringLiteral("--owner"), owner};
 }
 
 QStringList systemSetupCommand(const QString &mac, const QString &model,

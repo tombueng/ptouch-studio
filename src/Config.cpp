@@ -1,4 +1,5 @@
 #include "Config.h"
+#include "Status.h"
 
 #include <QDir>
 #include <QFile>
@@ -95,6 +96,14 @@ Config Config::load()
 
     if (c.printer.isEmpty())
         c.printer = findPtouchQueue();
+
+    // USB device numbers move when the printer is replugged or restarted, so a
+    // stale path in the configuration should not stop us finding the machine.
+    if (!QFileInfo::exists(c.device)) {
+        const QList<Port> ports = candidatePorts();
+        if (!ports.isEmpty())
+            c.device = ports.first().path;
+    }
     return c;
 }
 

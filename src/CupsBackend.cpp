@@ -155,8 +155,9 @@ void waitUntilIdle(int fd, int expectedLabels)
         }
         if (readStatus(fd, status, 3000)) {
             const int errors = status[8] | status[9];
-            const int phase = status[18];
-            if (errors) {
+            const int statusType = status[18];   // 2 = error, 1 = finished
+            const int phase = status[19];        // 1 = printing
+            if (errors || statusType == 2) {
                 logError("printer reports an error (0x" + std::to_string(status[8])
                          + "/0x" + std::to_string(status[9]) + ")");
                 return;

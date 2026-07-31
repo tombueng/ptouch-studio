@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QDialog>
+#include <QThread>
 #include <QList>
 
 #include "Provision.h"
@@ -26,12 +27,32 @@ private slots:
     void runSystemSetup();
 
 private:
+    // Everything the wizard needs to know about the chosen printer, whichever
+    // way it is attached.
+    struct Choice {
+        bool usb = false;
+        QString mac;        // Bluetooth
+        QString uri;        // USB
+        QString model;
+        QString device;     // /dev/usb/lpN, USB only
+        bool valid() const { return usb ? !uri.isEmpty() : !mac.isEmpty(); }
+    };
+    Choice currentChoice() const;
+
+    // The Bluetooth scan takes a dozen seconds; running it here would freeze the
+    // dialog, so it happens on a thread.
+    class ScanWorker;
+    ScanWorker *m_scanWorker = nullptr;
+    bool m_working = false;
+
+private:
     void appendLog(const QString &line);
     void setWorking(bool working, const QString &what = QString());
     void updateView();
 
     SetupState m_state;
     QList<Device> m_devices;
+    QList<UsbPrinter> m_usbPrinters;
 
     QLabel *m_summary = nullptr;
     QLabel *m_steps = nullptr;
