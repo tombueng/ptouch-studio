@@ -163,8 +163,19 @@ MainWindow::~MainWindow()
 {
     // The status worker talks to a Bluetooth port and can be mid-query when the
     // window closes. Letting it finish avoids tearing a running thread down.
-    if (m_worker && m_worker->isRunning())
-        m_worker->wait(5000);
+    if (!m_worker)
+        return;
+    disconnect(m_worker, nullptr, this, nullptr);   // nothing calls into a dying window
+    if (m_worker->isRunning() && !m_worker->wait(5000)) {
+        // A read that never returns must not take the process down with it. The
+        // worker is a child of this window, so it would be destroyed here — and
+        // QThread aborts when it is destroyed while still running. Disowning it
+        // leaves it to the deleteLater() it is already connected to; should the
+        // event loop be gone by then, a leak in a process that is exiting anyway
+        // is the cheaper of the two outcomes.
+        m_worker->setParent(nullptr);
+        m_worker.clear();
+    }
 }
 
 void MainWindow::demoContent()
@@ -418,8 +429,10 @@ void MainWindow::detectTape(bool quiet)
         m_tapeStatus->setStyleSheet(QString());
     }
     m_worker = new StatusWorker(m_config.device, this);
-    connect(m_worker, &StatusWorker::finished, this, &MainWindow::statusArrived);
-    connect(m_worker, &StatusWorker::finished, m_worker, &QObject::deleteLater);
+    connect(m_worker, &StatusWorker::ready, this, &MainWindow::statusArrived);
+    // QThread::finished, not the worker's own signal: the result is delivered
+    // from inside run(), so deleting on it races the thread's own shutdown.
+    connect(m_worker, &QThread::finished, m_worker, &QObject::deleteLater);
     m_worker->start();
 }
 

@@ -51,6 +51,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - A USB port that moved after replugging left the printer unreachable; the port
   is now looked up again when the configured path is gone.
 - Closing the window during a status query could abort the application.
+- The application aborted at random while it was polling the printer. The status
+  worker is a QThread and declared a finished() signal of its own, which hides
+  the one QThread emits after its run() has returned. The delete was connected to
+  that shadowed signal, so it could run while the thread was still going, and
+  destroying a running QThread is fatal. The worker's signal is now called
+  ready(), and a query that never returns no longer takes the process down when
+  the window closes on top of it.
 - Switching the automatic cut off cut the tape anyway, and a run of copies came
   out of the printer in two pieces. The driver knows two separate settings: one
   cuts between labels, the other feeds and cuts once the job ends. Only the first

@@ -61,7 +61,12 @@ public:
         : QThread(parent), m_device(std::move(device)) {}
 
 signals:
-    void finished(const ptouch::Status &status);
+    // Deliberately not called finished(): QThread already has a signal of that
+    // name, emitted once run() has returned and the thread is really done.
+    // Shadowing it means a connect() picks this one up instead, and anything
+    // waiting for the thread to end — deleteLater() above all — fires while the
+    // thread is still running.
+    void ready(const ptouch::Status &status);
 
 protected:
     void run() override;

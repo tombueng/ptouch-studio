@@ -243,7 +243,7 @@ QList<Port> candidatePorts()
 
 void StatusWorker::run()
 {
-    emit finished(queryStatusRetry(m_device));
+    emit ready(queryStatusRetry(m_device));
 }
 
 } // namespace ptouch
