@@ -52,13 +52,13 @@ the device directly — before every print.
 ### Debian, Ubuntu, Linux Mint
 
 ```bash
-sudo apt install ./ptouch-studio_0.2.0_amd64.deb
+sudo apt install ./ptouch-studio_0.3.0_amd64.deb
 ```
 
 ### Fedora, openSUSE
 
 ```bash
-sudo dnf install ./ptouch-studio-0.2.0-1.x86_64.rpm
+sudo dnf install ./ptouch-studio-0.3.0-1.x86_64.rpm
 ```
 
 ### Arch Linux
@@ -66,6 +66,13 @@ sudo dnf install ./ptouch-studio-0.2.0-1.x86_64.rpm
 ```bash
 cd packaging/arch && makepkg -si
 ```
+
+The CUPS driver `printer-driver-ptouch` lives in the AUR, so build with an AUR
+helper (`paru -S ptouch-studio`, `yay -S ptouch-studio`) or install that package
+first — plain `makepkg` does not resolve AUR dependencies and fails with
+`target not found: printer-driver-ptouch`. `/usr/bin/rfcomm`, which binds the
+Bluetooth port, is in `bluez-deprecated-tools` (official `extra` repo) and is
+pulled in automatically.
 
 ### Everything else (AppImage)
 
@@ -98,8 +105,10 @@ sudo cmake --install build
 
 Needs Qt 6.2 or newer, a C++20 compiler and CMake ≥ 3.21. `libqrencode` is
 optional — without it everything works except QR codes. At runtime it wants
-`bluez`, `cups` and the P-touch driver (`printer-driver-ptouch` on Debian and
-Ubuntu, `ptouch-driver` on Fedora and Arch).
+`bluez`, `cups` and the P-touch CUPS driver from
+[philpem/printer-driver-ptouch](https://github.com/philpem/printer-driver-ptouch),
+packaged as `printer-driver-ptouch` on Debian and Ubuntu and in the Arch AUR. On
+Arch, binding the RFCOMM port additionally needs `bluez-deprecated-tools`.
 
 ## Setup
 
@@ -144,8 +153,8 @@ ptouch-studio status --json                # for scripts
 Developed and verified with the **PT-P710BT** (P-touch Cube Plus) over Bluetooth.
 
 In principle every P-touch model works that
-[ptouch-driver](https://github.com/philpem/printer-driver-ptouch) supports and that
-offers a serial Bluetooth connection — PT-P300BT, PT-P700, PT-P750W, PT-E550W,
+[printer-driver-ptouch](https://github.com/philpem/printer-driver-ptouch) supports
+and that offers a serial Bluetooth connection — PT-P300BT, PT-P700, PT-P750W, PT-E550W,
 PT-P900W, PT-P950NW among them. Models whose print head differs from the PT-P700
 series may have different printable heights; reports are welcome.
 

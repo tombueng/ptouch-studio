@@ -1,9 +1,12 @@
 #include "Status.h"
 
+#include "Log.h"
+
 #include <QByteArray>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QMutex>
 #include <QRegularExpression>
 #include <QElapsedTimer>
 #include <QMap>
@@ -59,6 +62,34 @@ const QMap<int, QString> &errorBits2()
     return m;
 }
 
+// Status is polled continuously while the window is open, so logging every reply
+// would drown the log and rotate the print history away. Log only when the picture
+// changes — the first reading, a swapped tape, an error appearing or clearing — and
+// include the raw 32 bytes, which is what one needs to decode an odd reply by hand.
+void logStatus(const QString &device, const QByteArray &raw, const Status &s)
+{
+    QString summary;
+    if (!s.error.isEmpty())
+        summary = QStringLiteral("error: ") + s.error;
+    else
+        summary = QStringLiteral("tape %1 mm, %2, statusType %3, phase %4%5")
+                      .arg(s.tapeMm).arg(s.mediaType).arg(s.statusType).arg(s.phase)
+                      .arg(s.errors.isEmpty() ? QString()
+                                              : QStringLiteral(", errors: ") + s.errors.join(QLatin1Char('/')));
+
+    static QMutex mutex;
+    static QString last;
+    QMutexLocker lock(&mutex);
+    if (summary == last)
+        return;
+    last = summary;
+    lock.unlock();
+
+    log::line(QStringLiteral("status %1: %2%3").arg(device, summary,
+              raw.isEmpty() ? QString()
+                            : QStringLiteral("  [%1]").arg(QString::fromLatin1(raw.toHex(' ')))));
+}
+
 } // namespace
 
 Status decodeStatus(const QByteArray &d)
@@ -104,6 +135,7 @@ Status queryStatus(const QString &device, int timeoutMs)
         else
             s.error = QStringLiteral("%1: %2 — printer switched off or out of range?")
                           .arg(device, QString::fromLocal8Bit(std::strerror(e)));
+        logStatus(device, {}, s);
         return s;
     }
 
@@ -139,6 +171,7 @@ Status queryStatus(const QString &device, int timeoutMs)
     if (!written) {
         s.error = QStringLiteral("writing to %1 failed").arg(device);
         ::close(fd);
+        logStatus(device, {}, s);
         return s;
     }
 
@@ -161,9 +194,12 @@ Status queryStatus(const QString &device, int timeoutMs)
                       ? QStringLiteral("printer does not answer — switched on? "
                                        "(it powers off by itself after a while)")
                       : QStringLiteral("incomplete reply (%1 bytes)").arg(data.size());
+        logStatus(device, data, s);
         return s;
     }
-    return decodeStatus(data);
+    const Status decoded = decodeStatus(data);
+    logStatus(device, data, decoded);
+    return decoded;
 }
 
 Status queryStatusRetry(const QString &device, int attempts)

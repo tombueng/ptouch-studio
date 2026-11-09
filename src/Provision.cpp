@@ -1,6 +1,7 @@
 #include "Provision.h"
 
 #include "Config.h"
+#include "Log.h"
 #include "Status.h"
 
 #include <QCoreApplication>
@@ -139,6 +140,22 @@ DriverMatch findDriver(const QString &deviceName)
     }
     if (best.ppd.isEmpty())
         best.ppd = fallback;         // some P-touch driver beats no driver at all
+
+    // Which driver the queue is built from decides what the printer is actually
+    // sent, so it is the first thing to check when a label comes out wrong.
+    log::section(QStringLiteral("driver match for \"%1\"").arg(deviceName));
+    QStringList ptouchLines;
+    for (const QString &line : lines)
+        if (line.contains(QStringLiteral("ptouch"), Qt::CaseInsensitive))
+            ptouchLines << line.trimmed();
+    log::field(QStringLiteral("lpinfo -m ptouch entries"), QString::number(ptouchLines.size()));
+    log::block(QStringLiteral("candidates"), ptouchLines.join(QLatin1Char('\n')));
+    if (best.model.isEmpty() && !best.ppd.isEmpty())
+        log::line(QStringLiteral("WARNING: no model-specific match — falling back to \"%1\"")
+                      .arg(best.ppd));
+    log::field(QStringLiteral("chosen PPD"),
+               best.ppd.isEmpty() ? QStringLiteral("(none — no P-touch driver installed)")
+                                  : best.ppd);
     return best;
 }
 
@@ -276,6 +293,12 @@ QList<Device> scanForPrinters(int seconds)
     QList<Device> devices;
     for (auto it = found.begin(); it != found.end(); ++it)
         devices << Device{it.key(), it.value(), modelFromName(it.value())};
+
+    log::section(QStringLiteral("Bluetooth scan (%1 s)").arg(seconds));
+    log::field(QStringLiteral("P-touch devices found"), QString::number(devices.size()));
+    for (const Device &d : devices)
+        log::line(QStringLiteral("  %1  %2  (model %3)").arg(d.mac, d.name,
+                  d.model.isEmpty() ? QStringLiteral("?") : d.model));
     return devices;
 }
 
@@ -378,10 +401,25 @@ int installSystemUsb(const QString &uri, const QString &model, const QString &qu
     return 0;
 }
 
+// Inside an AppImage, applicationFilePath() points into the per-process FUSE
+// mount (e.g. /tmp/.mount_P-touXXXX/usr/bin/ptouch-studio). The system setup runs
+// as root through pkexec, and root cannot read another user's FUSE mount — the
+// elevated call dies with "Error accessing …: Permission denied". $APPIMAGE holds
+// the path of the .AppImage file itself, which sits on an ordinary filesystem
+// everyone can read, so re-exec through that. Outside an AppImage the variable is
+// unset and we fall back to the real binary path.
+static QString selfExecutable()
+{
+    const QString appimage = qEnvironmentVariable("APPIMAGE");
+    if (!appimage.isEmpty() && QFileInfo::exists(appimage))
+        return appimage;
+    return QCoreApplication::applicationFilePath();
+}
+
 QStringList systemSetupCommandUsb(const QString &uri, const QString &model,
                                   const QString &queue, const QString &owner)
 {
-    return {QCoreApplication::applicationFilePath(),
+    return {selfExecutable(),
             QStringLiteral("setup-system"),
             QStringLiteral("--usb"), uri,
             QStringLiteral("--model"), model,
@@ -392,7 +430,7 @@ QStringList systemSetupCommandUsb(const QString &uri, const QString &model,
 QStringList systemSetupCommand(const QString &mac, const QString &model,
                                const QString &queue, const QString &owner)
 {
-    return {QCoreApplication::applicationFilePath(),
+    return {selfExecutable(),
             QStringLiteral("setup-system"),
             QStringLiteral("--mac"), mac,
             QStringLiteral("--model"), model,

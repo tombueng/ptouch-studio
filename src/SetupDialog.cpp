@@ -1,6 +1,7 @@
 #include "SetupDialog.h"
 
 #include "Config.h"
+#include "Log.h"
 
 #include <QApplication>
 #include <QComboBox>
@@ -274,11 +275,17 @@ void SetupDialog::runSystemSetup()
     }
 
     setWorking(true, tr("System setup running (password prompt) …"));
+    log::section(QStringLiteral("system setup (pkexec)"));
+    log::field(QStringLiteral("command"), command.join(QLatin1Char(' ')));
     QProcess process;
     process.setProcessChannelMode(QProcess::MergedChannels);
     process.start(launcher, command);
     process.waitForFinished(180000);
     const QString output = QString::fromLocal8Bit(process.readAll()).trimmed();
+    // The privileged step runs as root, so its own log writes land in root's home;
+    // fold the captured output into the user's session log here instead.
+    log::block(QStringLiteral("setup output"), output);
+    log::field(QStringLiteral("setup exit"), QString::number(process.exitCode()));
     if (!output.isEmpty())
         appendLog(output);
 
