@@ -55,6 +55,11 @@ port was released in the meantime. When in doubt:
 sudo systemctl restart ptouch-rfcomm.service
 ```
 
+If the service fails with `/usr/bin/rfcomm: No such file or directory`, the
+`rfcomm` tool is missing. It was split out of `bluez-utils` on some distributions:
+on Arch/CachyOS install `bluez-deprecated-tools`, on Debian/Ubuntu it is part of
+`bluez`.
+
 ## The printer blinks red and refuses to settle
 
 Ask it what is wrong:

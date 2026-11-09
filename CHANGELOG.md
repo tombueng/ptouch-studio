@@ -8,6 +8,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Diagnostics report for bug reports: "Help → Save diagnostics report …" in the
+  interface, or `ptouch-studio diagnostics [file]` on the command line. It bundles
+  build and system details, the print queue and its PPD, the available P-touch
+  drivers, the Bluetooth and RFCOMM state and a session log. Finding, setting up,
+  querying and printing to a printer are now logged to
+  `~/.local/state/ptouch-studio/session.log`, and the CUPS backend records the
+  bytes it sends and every status reply from the printer — enough to tell a blank
+  feed caused by an empty raster from one caused by a printer error.
 - Pictures, QR codes and Code 128 barcodes beside the text, on either side.
   Barcode width follows from the module width, not from the space available:
   below roughly 0.25 mm per bar no scanner reads them, and both codes warn when
@@ -32,6 +40,15 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Arch package would not install: it depended on `ptouch-driver`, which does not
+  exist. The dependency is now `printer-driver-ptouch` (AUR), and
+  `bluez-deprecated-tools` was added for `/usr/bin/rfcomm`, which Arch split out of
+  `bluez-utils`.
+- AppImage: "Set up now" failed with "Permission denied" because the privileged
+  step was started from the per-process FUSE mount, which root cannot read. It now
+  re-execs through `$APPIMAGE`. The sub-commands also crashed from the command line
+  with 'Could not find the Qt platform plugin "offscreen"'; the plugin is now
+  bundled.
 - Labels were cut a few millimetres short: the cutter sits behind the print head,
   so the tape has to travel that distance before it can be cut. Anything drawn
   near the end was lost.

@@ -1,16 +1,21 @@
 #include "MainWindow.h"
 
+#include "Log.h"
 #include "PreviewWidget.h"
 #include "Provision.h"
 #include "SetupDialog.h"
 #include "Version.h"
 
 #include <QAction>
+#include <QApplication>
 #include <QCoreApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDateTime>
+#include <QDir>
 #include <QDoubleSpinBox>
 #include <QEvent>
+#include <QFile>
 #include <QFileDialog>
 #include <QFontComboBox>
 #include <QFormLayout>
@@ -27,6 +32,7 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QSpinBox>
+#include <QStandardPaths>
 #include <QStatusBar>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -120,6 +126,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     });
 
     auto *help = menuBar()->addMenu(tr("&Help"));
+    QAction *diagAction = help->addAction(tr("Save &diagnostics report …"));
+    connect(diagAction, &QAction::triggered, this, &MainWindow::saveDiagnostics);
+    help->addSeparator();
     QAction *aboutAction =
         help->addAction(tr("About %1").arg(QStringLiteral(PTOUCH_APP_NAME)));
     connect(aboutAction, &QAction::triggered, this, [this] {
@@ -760,6 +769,46 @@ void MainWindow::openSetup()
     dialog.exec();
     m_config = Config::load();
     detectTape(false);
+}
+
+void MainWindow::saveDiagnostics()
+{
+    // Collecting runs a batch of read-only system queries; it takes a moment.
+    log::section(QStringLiteral("diagnostics report requested from the interface"));
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    statusBar()->showMessage(tr("Collecting diagnostics …"));
+    const QString report = log::collectDiagnostics();
+    QApplication::restoreOverrideCursor();
+    statusBar()->clearMessage();
+
+    const QString suggested =
+        QDir(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation))
+            .filePath(QStringLiteral("ptouch-studio-diagnostics-%1.txt")
+                          .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"))));
+
+    const QString path = QFileDialog::getSaveFileName(
+        this, tr("Save diagnostics report"), suggested,
+        tr("Text files (*.txt);;All files (*)"));
+    if (path.isEmpty())
+        return;
+
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::warning(this, tr("Could not save"),
+                             tr("Writing %1 failed: %2").arg(path, f.errorString()));
+        return;
+    }
+    f.write(report.toUtf8());
+    f.close();
+
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Information);
+    box.setWindowTitle(tr("Diagnostics saved"));
+    box.setText(tr("Saved to:\n%1").arg(path));
+    box.setInformativeText(tr("Attach this file to the bug report. It describes the "
+                              "printer, the driver, the print queue and the last jobs — "
+                              "no personal documents."));
+    box.exec();
 }
 
 void MainWindow::changeEvent(QEvent *event)

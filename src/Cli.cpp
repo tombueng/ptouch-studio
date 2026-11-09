@@ -2,6 +2,7 @@
 
 #include "Config.h"
 #include "Engine.h"
+#include "Log.h"
 #include "Printer.h"
 #include "MainWindow.h"
 #include "Provision.h"
@@ -517,6 +518,36 @@ int cmdSetupSystem(const QStringList &args)
                          p.value(QStringLiteral("owner")), log);
 }
 
+int cmdDiagnostics(const QStringList &args)
+{
+    // "ptouch-studio diagnostics"            → print to stdout
+    // "ptouch-studio diagnostics report.txt" → write to that file
+    // "ptouch-studio diagnostics --out FILE" → ditto
+    QString target;
+    for (int i = 1; i < args.size(); ++i) {
+        const QString &a = args.at(i);
+        if (a == QStringLiteral("--out") || a == QStringLiteral("-o"))
+            target = args.value(++i);
+        else if (!a.startsWith(QLatin1Char('-')))
+            target = a;
+    }
+
+    const QString report = log::collectDiagnostics();
+
+    if (target.isEmpty()) {
+        out() << report;
+        return 0;
+    }
+    QFile f(target);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        err() << QStringLiteral("cannot write %1: %2").arg(target, f.errorString()) << Qt::endl;
+        return 1;
+    }
+    f.write(report.toUtf8());
+    err() << QStringLiteral("diagnostics written to %1").arg(target) << Qt::endl;
+    return 0;
+}
+
 } // namespace
 
 QString usage()
@@ -532,6 +563,7 @@ QString usage()
         "  ptouch-studio reset               clear a pending error state\n"
         "  ptouch-studio setup               set up the printer\n"
         "  ptouch-studio check               check the setup\n"
+        "  ptouch-studio diagnostics [file]  collect a full report for bug reports\n"
         "\n"
         "\"ptouch-studio print --help\" lists the layout options.\n")
         .arg(QStringLiteral(PTOUCH_APP_NAME), QStringLiteral(PTOUCH_VERSION));
@@ -548,6 +580,7 @@ int runCli(const QStringList &arguments)
     if (command == QStringLiteral("reset"))        return cmdReset(arguments.mid(1));
     if (command == QStringLiteral("setup"))        return cmdSetup(arguments.mid(1));
     if (command == QStringLiteral("setup-system")) return cmdSetupSystem(arguments.mid(1));
+    if (command == QStringLiteral("diagnostics"))  return cmdDiagnostics(arguments.mid(1));
     if (command == QStringLiteral("screenshot"))   return cmdScreenshot(arguments.mid(1));
 
     out() << usage();

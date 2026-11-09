@@ -54,6 +54,11 @@ fetch "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/co
 export APPIMAGE_EXTRACT_AND_RUN=1
 export QMAKE="${QMAKE:-$(command -v qmake6 || command -v qmake)}"
 export EXTRA_QT_PLUGINS="platformthemes;iconengines;imageformats"
+# The sub-commands (print, status, setup, diagnostics …) run on the "offscreen"
+# platform — they need font metrics but no display. linuxdeploy-plugin-qt only
+# bundles the GUI platform plugin, so without this the CLI inside the AppImage
+# dies with 'Could not find the Qt platform plugin "offscreen"'.
+export EXTRA_PLATFORM_PLUGINS="libqoffscreen.so"
 export PATH="$TOOLS:$PATH"
 
 echo "==> building AppImage"

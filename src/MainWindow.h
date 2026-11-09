@@ -53,6 +53,7 @@ private slots:
     void savePdf();
     void openSetup();
     void insertSymbol();
+    void saveDiagnostics();
 
 private:
     QWidget *buildControls();

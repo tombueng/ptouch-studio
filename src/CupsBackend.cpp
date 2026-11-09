@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <string>
+#include <sys/stat.h>
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
@@ -33,16 +34,53 @@ constexpr int StatusLength = 32;
 constexpr int OpenAttempts = 8;
 constexpr int DrainTimeoutSeconds = 300;
 
+// This backend runs as root under cupsd; its stderr goes to /var/log/cups/error_log,
+// which an ordinary user cannot read. Mirror every line to a world-readable file so
+// `ptouch-studio diagnostics` can fold the printer's own replies — the key evidence
+// when a label prints blank or the tape just feeds — into a bug report.
+// Keep this path in sync with ptouch::log::BackendLogPath in Log.h.
+const char *const BackendLogPath = "/var/log/ptouch-studio-backend.log";
+
+void logFile(const std::string &message)
+{
+    FILE *f = std::fopen(BackendLogPath, "a");
+    if (!f)
+        return;
+    ::fchmod(::fileno(f), 0644);
+    char when[32] = {0};
+    const time_t now = ::time(nullptr);
+    tm tmv{};
+    ::localtime_r(&now, &tmv);
+    ::strftime(when, sizeof(when), "%Y-%m-%d %H:%M:%S", &tmv);
+    std::fprintf(f, "%s [%ld] %s\n", when, long(::getpid()), message.c_str());
+    std::fclose(f);
+}
+
+std::string toHex(const unsigned char *data, int n)
+{
+    static const char *digits = "0123456789abcdef";
+    std::string s;
+    s.reserve(n * 3);
+    for (int i = 0; i < n; ++i) {
+        s += digits[data[i] >> 4];
+        s += digits[data[i] & 0x0f];
+        s += ' ';
+    }
+    return s;
+}
+
 void logInfo(const std::string &message)
 {
     std::fprintf(stderr, "INFO: %s\n", message.c_str());
     std::fflush(stderr);
+    logFile("INFO: " + message);
 }
 
 void logError(const std::string &message)
 {
     std::fprintf(stderr, "ERROR: %s\n", message.c_str());
     std::fflush(stderr);
+    logFile("ERROR: " + message);
 }
 
 double monotonicSeconds()
@@ -157,6 +195,12 @@ void waitUntilIdle(int fd, int expectedLabels)
             const int errors = status[8] | status[9];
             const int statusType = status[18];   // 2 = error, 1 = finished
             const int phase = status[19];        // 1 = printing
+            // The full reply, byte for byte: tape width (10), media (11), the two
+            // error bytes (8/9) and the phase all live here, and a blank-feed fault
+            // usually shows up as an error bit or a phase that never leaves 1.
+            logFile("status: " + toHex(status, StatusLength)
+                    + "(err 0x" + std::to_string(status[8]) + "/0x" + std::to_string(status[9])
+                    + " type " + std::to_string(statusType) + " phase " + std::to_string(phase) + ")");
             if (errors || statusType == 2) {
                 logError("printer reports an error (0x" + std::to_string(status[8])
                          + "/0x" + std::to_string(status[9]) + ")");
@@ -187,6 +231,19 @@ int main(int argc, char *argv[])
     if (argc < 2) {
         std::printf("direct rfcomm \"Unknown\" \"Bluetooth RFCOMM (P-touch)\"\n");
         return BackendOk;
+    }
+
+    // One banner per job, so a report shows exactly which run went wrong.
+    {
+        std::string argline = "job start:";
+        for (int i = 1; i < argc && i <= 5; ++i)
+            argline += std::string(" argv[") + std::to_string(i) + "]=" + argv[i];
+        logFile("========================================");
+        logFile(argline);
+        if (const char *u = std::getenv("DEVICE_URI"))
+            logFile(std::string("DEVICE_URI=") + u);
+        if (const char *p = std::getenv("FINAL_CONTENT_TYPE"))
+            logFile(std::string("FINAL_CONTENT_TYPE=") + p);
     }
 
     const char *uri = std::getenv("DEVICE_URI");

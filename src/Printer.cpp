@@ -1,8 +1,11 @@
 #include "Printer.h"
 
+#include "Log.h"
+
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QTemporaryFile>
@@ -140,12 +143,25 @@ void PrintJob::start(const Spec &spec, const Layout &layout, const QString &prin
     m_pdfPath = tempPdfPath();
 
     const PageSize page = writePdf(m_pdfPath, spec, layout);
+
+    log::section(QStringLiteral("print job"));
+    log::field(QStringLiteral("queue"), printer);
+    log::field(QStringLiteral("tape"), QStringLiteral("%1 mm").arg(spec.tapeMm));
+    log::field(QStringLiteral("copies / autocut"),
+               QStringLiteral("%1 / %2").arg(m_copies).arg(spec.autocut ? "on" : "off"));
+    log::field(QStringLiteral("page size"),
+               QStringLiteral("%1 x %2 pt").arg(page.widthPt).arg(page.heightPt));
+    log::field(QStringLiteral("pdf"),
+               QStringLiteral("%1 (%2 bytes)").arg(m_pdfPath).arg(QFileInfo(m_pdfPath).size()));
+    const QStringList args = lpArguments(spec, page, printer, m_pdfPath, m_copies);
+    log::field(QStringLiteral("lp"), args.join(QLatin1Char(' ')));
+
     emit progress(QStringLiteral("Submitting job …"));
 
     int code = 0;
-    const QString out = runCommand(
-        QStringLiteral("lp"),
-        lpArguments(spec, page, printer, m_pdfPath, m_copies), &code);
+    const QString out = runCommand(QStringLiteral("lp"), args, &code);
+    log::field(QStringLiteral("lp exit"), QString::number(code));
+    log::block(QStringLiteral("lp output"), out);
     if (code != 0) {
         done(false, out.trimmed().isEmpty()
                         ? QStringLiteral("lp refused the job.")
@@ -154,6 +170,7 @@ void PrintJob::start(const Spec &spec, const Layout &layout, const QString &prin
     }
 
     m_jobId = parseJobId(out);
+    log::field(QStringLiteral("job id"), m_jobId.isEmpty() ? QStringLiteral("(none)") : m_jobId);
     emit progress(m_copies > 1
                       ? QStringLiteral("Printing %1 labels …").arg(m_copies)
                       : QStringLiteral("Printing …"));
@@ -178,12 +195,15 @@ void PrintJob::poll()
         done(false, trouble);
         return;
     }
+    log::field(QStringLiteral("queue drained after"), QStringLiteral("%1 s").arg(m_elapsed));
     done(true, m_copies > 1 ? QStringLiteral("%1 labels printed.").arg(m_copies)
                             : QStringLiteral("Label printed."));
 }
 
 void PrintJob::done(bool ok, const QString &message)
 {
+    log::field(QStringLiteral("result"),
+               (ok ? QStringLiteral("ok — ") : QStringLiteral("FAILED — ")) + message);
     m_timer.stop();
     if (!m_pdfPath.isEmpty()) {
         QFile::remove(m_pdfPath);
@@ -208,9 +228,19 @@ PrintResult printAndWait(const Spec &spec, const Layout &layout, const QString &
     const PageSize page = writePdf(pdf, spec, layout);
 
     const int copies = std::max(1, spec.copies);
+    const QStringList args = lpArguments(spec, page, printer, pdf, copies);
+    log::section(QStringLiteral("print job (cli)"));
+    log::field(QStringLiteral("queue"), printer);
+    log::field(QStringLiteral("page size"),
+               QStringLiteral("%1 x %2 pt").arg(page.widthPt).arg(page.heightPt));
+    log::field(QStringLiteral("pdf"),
+               QStringLiteral("%1 (%2 bytes)").arg(pdf).arg(QFileInfo(pdf).size()));
+    log::field(QStringLiteral("lp"), args.join(QLatin1Char(' ')));
+
     int code = 0;
-    const QString out = runCommand(
-        QStringLiteral("lp"), lpArguments(spec, page, printer, pdf, copies), &code);
+    const QString out = runCommand(QStringLiteral("lp"), args, &code);
+    log::field(QStringLiteral("lp exit"), QString::number(code));
+    log::block(QStringLiteral("lp output"), out);
     if (code != 0) {
         QFile::remove(pdf);
         result.message = out.trimmed();
@@ -229,10 +259,12 @@ PrintResult printAndWait(const Spec &spec, const Layout &layout, const QString &
     const QString trouble = queueTrouble(printer);
     if (!trouble.isEmpty()) {
         result.message = trouble;
+        log::field(QStringLiteral("result"), QStringLiteral("FAILED — ") + trouble);
         return result;
     }
     if (!jobId.isEmpty() && jobStillQueued(printer, jobId)) {
         result.message = QStringLiteral("Job is still queued — is the printer switched on?");
+        log::field(QStringLiteral("result"), QStringLiteral("FAILED — still queued"));
         return result;
     }
 
@@ -240,6 +272,7 @@ PrintResult printAndWait(const Spec &spec, const Layout &layout, const QString &
     result.message = spec.copies > 1
                          ? QStringLiteral("%1 labels printed").arg(spec.copies)
                          : QStringLiteral("label printed");
+    log::field(QStringLiteral("result"), QStringLiteral("ok — ") + result.message);
     return result;
 }
 

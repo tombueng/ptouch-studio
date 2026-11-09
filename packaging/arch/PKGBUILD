@@ -1,12 +1,17 @@
 # Maintainer: Thomas Büngener <tombueng@gmail.com>
 pkgname=ptouch-studio
-pkgver=0.2.0
+pkgver=0.3.0
 pkgrel=1
 pkgdesc="Design and print labels for Brother P-touch tape cassettes over Bluetooth"
 arch=('x86_64' 'aarch64')
 url="https://github.com/tombueng/ptouch-studio"
 license=('MIT')
-depends=('qt6-base' 'bluez' 'bluez-utils' 'cups' 'ptouch-driver')
+# printer-driver-ptouch: the CUPS filter/PPD (AUR); there is no package named
+#   "ptouch-driver" — that was a Debian-ism and broke installation on Arch.
+# bluez-deprecated-tools: provides /usr/bin/rfcomm, which the RFCOMM service binds
+#   the port with. Arch split it out of bluez-utils, so it must be named explicitly.
+depends=('qt6-base' 'bluez' 'bluez-utils' 'bluez-deprecated-tools' 'cups'
+         'printer-driver-ptouch')
 makedepends=('cmake' 'ninja')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('SKIP')

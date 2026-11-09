@@ -1,4 +1,5 @@
 #include "Cli.h"
+#include "Log.h"
 #include "MainWindow.h"
 #include "Version.h"
 
@@ -35,6 +36,7 @@ int main(int argc, char *argv[])
         QApplication::installTranslator(&translator);
 
     const QStringList arguments = QApplication::arguments();
+    ptouch::log::init(arguments.join(QLatin1Char(' ')));
     if (arguments.size() > 1)
         return ptouch::runCli(arguments);
 
