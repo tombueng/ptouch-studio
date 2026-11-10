@@ -28,7 +28,15 @@ constexpr qint64 RotateBytes = 1 << 20;   // 1 MiB — keep one older generation
 
 QString resolvePath()
 {
+    // GenericStateLocation (~/.local/state) is where a session log belongs, but it
+    // only arrived in Qt 6.7. On older Qt — e.g. the 6.2 on Ubuntu 22.04 that the
+    // CI and the AppImage build on — fall back to the XDG data dir, same ~/.local
+    // layout, so the log still lands in a sensible per-user place.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
     QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericStateLocation);
+#else
+    QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+#endif
     if (dir.isEmpty())
         dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     if (dir.isEmpty())
