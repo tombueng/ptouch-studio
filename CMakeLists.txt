@@ -15,6 +15,12 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
 endif()
 
+# Qt6::Gui probes for Vulkan headers as an optional dependency. We never touch
+# Vulkan (plain QWidgets), so skip the probe — otherwise configuring prints a
+# "Could NOT find WrapVulkanHeaders" line on machines without vulkan-headers,
+# which looks like something is wrong when nothing is.
+set(CMAKE_DISABLE_FIND_PACKAGE_WrapVulkanHeaders ON)
+
 # 6.2 is what Ubuntu 22.04 ships; nothing here needs anything newer.
 find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets)
 find_package(Qt6 6.2 QUIET COMPONENTS LinguistTools)
