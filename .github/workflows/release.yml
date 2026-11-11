@@ -17,7 +17,7 @@ jobs:
     name: deb & rpm
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
@@ -41,7 +41,7 @@ jobs:
           cpack -G RPM
           cpack -G TGZ
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: native-packages
           path: |
@@ -53,7 +53,7 @@ jobs:
     name: AppImage
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
 
@@ -67,7 +67,7 @@ jobs:
       - name: Build AppImage
         run: packaging/appimage/build.sh
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: appimage
           path: build-appimage/dist/*
@@ -77,9 +77,9 @@ jobs:
     needs: [packages, appimage]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
 
