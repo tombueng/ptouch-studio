@@ -123,6 +123,12 @@ ptouch-studio setup      # find, pair and configure
 ptouch-studio check      # show what is still missing
 ```
 
+Over Bluetooth the setup asks the printer which RFCOMM channel its serial port
+uses — it is not the same on every machine. Should that ever pick the wrong one,
+`ptouch-studio channels` lists what the printer offers and
+`ptouch-studio setup --channel N` (or the channel box in the wizard) sets it by
+hand.
+
 The printer may stay connected to your phone throughout — that does not interfere
 with pairing.
 
@@ -203,6 +209,7 @@ More in [docs/architecture.md](docs/architecture.md).
 | "printer does not answer" | The device powers itself off after a while. Switching it on is enough. |
 | "no access to /dev/rfcomm0" | Setup incomplete — `ptouch-studio check` names the missing step. |
 | "/dev/rfcomm0 is missing" | `systemctl status ptouch-rfcomm.service` |
+| "wrong RFCOMM channel" or "incomplete reply" | The port is bound to the wrong service. Run `ptouch-studio setup` again with the printer switched on. |
 | Job stays in the queue | The printer was unreachable. CUPS holds the job for 300 s and prints it once the device is back. |
 | Queue stopped | `cupsenable PT-Label` |
 

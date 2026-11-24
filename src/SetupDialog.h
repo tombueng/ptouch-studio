@@ -12,6 +12,7 @@ class QComboBox;
 class QPlainTextEdit;
 class QProgressBar;
 class QPushButton;
+class QSpinBox;
 
 namespace ptouch {
 
@@ -57,6 +58,7 @@ private:
     QLabel *m_summary = nullptr;
     QLabel *m_steps = nullptr;
     QComboBox *m_deviceBox = nullptr;
+    QSpinBox *m_channelBox = nullptr;   // 0 = ask the printer
     QPushButton *m_scanButton = nullptr;
     QPushButton *m_pairButton = nullptr;
     QPushButton *m_systemButton = nullptr;

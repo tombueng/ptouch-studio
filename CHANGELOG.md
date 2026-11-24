@@ -6,7 +6,24 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The Bluetooth setup no longer assumes RFCOMM channel 1. It asks the printer
+  over SDP which channel its serial port is on — a PT-P710BT with newer firmware
+  has Apple's iAP2 service on channel 1 and the serial port on channel 2, and
+  binding the wrong one made every status reply garbage while print jobs were
+  reported as done ([#3](https://github.com/tombueng/ptouch-studio/issues/3)).
+  If the printer cannot be reached during setup, the previous channel is kept.
+- A port bound to the iAP2 service is now named as such: the status shows
+  "wrong RFCOMM channel" instead of a made-up tape width, and the CUPS backend
+  fails the job instead of reporting it as printed.
+
 ### Added
+
+- The RFCOMM channel can be set by hand: `ptouch-studio setup --channel N`, or
+  the channel box in the setup wizard. `ptouch-studio channels` lists the
+  printer's Bluetooth services and their channels, and the diagnostics report
+  now includes them next to the configured channel.
 
 - Diagnostics report for bug reports: "Help → Save diagnostics report …" in the
   interface, or `ptouch-studio diagnostics [file]` on the command line. It bundles

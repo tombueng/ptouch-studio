@@ -2,6 +2,7 @@
 
 #include "Config.h"
 #include "Log.h"
+#include "Sdp.h"
 #include "Status.h"
 
 #include <QCoreApplication>
@@ -171,6 +172,50 @@ QString deviceNameFor(const QString &mac)
     return {};
 }
 
+// The RFCOMM channel of the printer's serial port. Asking the printer beats any
+// fixed number: the PT-P710BT alone ships with it on channel 1 or 2, depending on
+// the firmware, and the wrong one looks fine until the first status query.
+int resolveChannel(const QString &mac, int requested,
+                   const std::function<void(const QString &)> &log)
+{
+    if (requested > 0) {
+        log(QStringLiteral("RFCOMM channel %1 (set by hand)").arg(requested));
+        return requested;
+    }
+
+    log(QStringLiteral("looking up the serial port channel of %1 (SDP) …").arg(mac));
+    QString error;
+    const QList<SdpService> services = queryRfcommServices(mac, &error);
+    log::section(QStringLiteral("SDP services of %1").arg(mac));
+    for (const SdpService &s : services) {
+        log(QStringLiteral("  ") + s.describe());
+        log::line(s.describe());
+    }
+    const int found = pickSerialChannel(services);
+    if (found > 0) {
+        log(QStringLiteral("  using channel %1").arg(found));
+        log::field(QStringLiteral("chosen channel"), QString::number(found));
+        return found;
+    }
+
+    // Keep what an earlier setup of the same printer found rather than falling
+    // back to 1 — the printer may merely be switched off right now.
+    int fallback = 1;
+    if (systemConfValue(QStringLiteral("PTOUCH_MAC")).compare(mac, Qt::CaseInsensitive) == 0) {
+        const int previous = systemConfValue(QStringLiteral("PTOUCH_CHANNEL")).toInt();
+        if (previous >= 1 && previous <= MaxRfcommChannel)
+            fallback = previous;
+    }
+    const QString reason = !error.isEmpty() ? error
+                                            : QStringLiteral("no serial port service found");
+    log(QStringLiteral("  warning: %1 — using channel %2. If the status stays wrong, run the "
+                       "setup again with the printer switched on, or set the channel by "
+                       "hand (--channel N).").arg(reason).arg(fallback));
+    log::field(QStringLiteral("chosen channel"),
+               QStringLiteral("%1 (fallback: %2)").arg(fallback).arg(reason));
+    return fallback;
+}
+
 } // namespace
 
 QStringList SetupState::missingSteps() const
@@ -249,6 +294,7 @@ SetupState checkSetup()
             s.model = modelFromName(info);
     }
 
+    s.channel = systemConfValue(QStringLiteral("PTOUCH_CHANNEL")).toInt();
     s.udevRule = QFileInfo::exists(QString::fromLatin1(UdevRulePath));
     s.systemdUnit = QFileInfo::exists(QString::fromLatin1(SystemdUnitPath));
     s.rfcommActive = run(QStringLiteral("systemctl"),
@@ -428,13 +474,15 @@ QStringList systemSetupCommandUsb(const QString &uri, const QString &model,
 }
 
 QStringList systemSetupCommand(const QString &mac, const QString &model,
-                               const QString &queue, const QString &owner)
+                               const QString &queue, const QString &owner, int channel)
 {
     return {selfExecutable(),
             QStringLiteral("setup-system"),
             QStringLiteral("--mac"), mac,
             QStringLiteral("--model"), model,
             QStringLiteral("--queue"), queue,
+            QStringLiteral("--channel"),
+            channel > 0 ? QString::number(channel) : QStringLiteral("auto"),
             QStringLiteral("--owner"), owner};
 }
 
@@ -448,6 +496,10 @@ int installSystem(const QString &mac, const QString &model, const QString &queue
     }
     const QString device = QStringLiteral("/dev/rfcomm%1").arg(index);
     QString error;
+
+    // Before rfcomm.conf is rewritten: a failed lookup falls back to the channel
+    // recorded there.
+    channel = resolveChannel(mac, channel, log);
 
     log(QStringLiteral("configuration %1").arg(QString::fromLatin1(SystemConfPath)));
     const QString conf = QStringLiteral("# written by ptouch-studio setup\n"

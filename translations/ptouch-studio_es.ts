@@ -535,6 +535,22 @@ F3 · 16 A</source>
         <translation>%1 servicio RFCOMM activo</translation>
     </message>
     <message>
+        <source>%1 RFCOMM service running (channel %2)</source>
+        <translation>%1 servicio RFCOMM activo (canal %2)</translation>
+    </message>
+    <message>
+        <source>automatic</source>
+        <translation>automático</translation>
+    </message>
+    <message>
+        <source>RFCOMM channel:</source>
+        <translation>Canal RFCOMM:</translation>
+    </message>
+    <message>
+        <source>Bluetooth only. &quot;automatic&quot; asks the printer which channel its serial port uses. Set a number only if status queries keep failing; &quot;ptouch-studio channels&quot; lists what the printer offers.</source>
+        <translation>Solo Bluetooth. «automático» pregunta a la impresora en qué canal está su puerto serie. Indique un número solo si las consultas de estado siguen fallando; «ptouch-studio channels» muestra lo que ofrece la impresora.</translation>
+    </message>
+    <message>
         <source>%1 access to %2</source>
         <translation>%1 acceso a %2</translation>
     </message>

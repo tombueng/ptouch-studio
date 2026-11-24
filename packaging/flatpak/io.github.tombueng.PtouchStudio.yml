@@ -30,6 +30,9 @@ finish-args:
   # Reading the loaded tape means opening /dev/rfcomm0 directly. Flatpak has no
   # finer grained way to hand out a single character device.
   - --device=all
+  # Asking the printer over SDP which RFCOMM channel its serial port uses needs
+  # a Bluetooth socket, which the sandbox blocks otherwise.
+  - --allow=bluetooth
 
 modules:
   - name: ptouch-studio

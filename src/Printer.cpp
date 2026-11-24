@@ -114,10 +114,17 @@ bool jobStillQueued(const QString &printer, const QString &jobId)
 QString queueTrouble(const QString &printer)
 {
     const QString out = runCommand(QStringLiteral("lpstat"), {QStringLiteral("-p"), printer});
-    if (out.contains(QStringLiteral("disabled")) || out.contains(QStringLiteral("deaktiviert")))
-        return QStringLiteral("The queue was stopped because the printer could not be "
-                              "reached. Re-enable it with \"cupsenable %1\".").arg(printer);
-    return {};
+    if (!out.contains(QStringLiteral("disabled")) && !out.contains(QStringLiteral("deaktiviert")))
+        return {};
+    // The backend's last error becomes the queue's state message, the indented
+    // line under the printer. A wrong RFCOMM channel is fixed by the setup, which
+    // re-enables the queue as well — sending the user to cupsenable would not help.
+    for (const QString &line : out.split(QLatin1Char('\n'))) {
+        if (line.contains(QStringLiteral("wrong RFCOMM channel")))
+            return line.trimmed();
+    }
+    return QStringLiteral("The queue was stopped because the printer could not be "
+                          "reached. Re-enable it with \"cupsenable %1\".").arg(printer);
 }
 
 } // namespace

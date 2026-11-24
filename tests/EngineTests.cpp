@@ -5,6 +5,7 @@
 // too large while every other measurement looks right. So this does not merely do
 // arithmetic — it rasterises the produced PDF and measures the ink.
 #include "Engine.h"
+#include "Sdp.h"
 #include "Status.h"
 
 #include <QGuiApplication>
@@ -276,6 +277,93 @@ void testStatusDecoding()
     check(!s.error.isEmpty(), "a short reply is rejected");
 }
 
+// SDP data elements, built by hand the way a printer sends them.
+QByteArray sdpSeq(const QByteArray &content)
+{
+    return QByteArray(1, char(0x35)) + char(content.size()) + content;
+}
+QByteArray sdpUInt8(quint8 v) { return QByteArray::fromHex("08") + char(v); }
+QByteArray sdpUInt16(quint16 v) { return QByteArray::fromHex("09") + char(v >> 8) + char(v & 0xff); }
+QByteArray sdpUuid16(quint16 v) { return QByteArray::fromHex("19") + char(v >> 8) + char(v & 0xff); }
+QByteArray sdpUuid128(const char *hex) { return QByteArray::fromHex("1c") + QByteArray::fromHex(hex); }
+QByteArray sdpText(const QByteArray &s) { return QByteArray::fromHex("25") + char(s.size()) + s; }
+
+QByteArray sdpRecord(const QByteArray &serviceClass, int channel, const QByteArray &name)
+{
+    QByteArray attributes = sdpUInt16(0x0001) + sdpSeq(serviceClass);
+    if (channel > 0)
+        attributes += sdpUInt16(0x0004)
+                      + sdpSeq(sdpSeq(sdpUuid16(0x0100))
+                               + sdpSeq(sdpUuid16(0x0003) + sdpUInt8(quint8(channel))));
+    attributes += sdpUInt16(0x0100) + sdpText(name);
+    return sdpSeq(attributes);
+}
+
+// The outer list with a two-byte length, as longer replies use.
+QByteArray sdpLists(const QByteArray &records)
+{
+    return QByteArray::fromHex("36") + char(records.size() >> 8) + char(records.size() & 0xff)
+           + records;
+}
+
+void testSdpChannel()
+{
+    const QByteArray iap2 = sdpUuid128("00000000decafadedecadeafdecacaff");
+    const QByteArray serialPort = sdpUuid16(0x1101);
+
+    // Issue #3: PT-P710BT with iAP2 on channel 1 and the serial port on 2.
+    QList<SdpService> services = parseSdpAttributeLists(
+        sdpLists(sdpRecord(iap2, 1, "iAP2") + sdpRecord(serialPort, 2, "SPP SERVER")));
+    check(services.size() == 2, "SDP: both records are decoded");
+    check(services.value(0).isIap2() && services.value(0).channel == 1,
+          "SDP: the iAP2 record on channel 1 is recognised");
+    check(services.value(1).isSerialPort() && services.value(1).name == QStringLiteral("SPP SERVER"),
+          "SDP: the serial port record and its name are read");
+    check(pickSerialChannel(services) == 2, "SDP: channel 2 is chosen past iAP2 on channel 1");
+
+    // Older firmware: the serial port alone, on channel 1.
+    services = parseSdpAttributeLists(sdpLists(sdpRecord(serialPort, 1, "SPP")));
+    check(pickSerialChannel(services) == 1, "SDP: a lone serial port on channel 1 is chosen");
+
+    // The Serial Port class spelled as a full 128-bit UUID, name NUL-terminated.
+    services = parseSdpAttributeLists(sdpLists(
+        sdpRecord(sdpUuid128("0000110100001000800000805f9b34fb"), 3,
+                  QByteArray("Serial\0", 7))));
+    check(services.size() == 1 && services.first().isSerialPort(),
+          "SDP: a 128-bit Serial Port UUID counts as serial port");
+    check(services.value(0).name == QStringLiteral("Serial"), "SDP: trailing NUL is dropped");
+    check(pickSerialChannel(services) == 3, "SDP: its channel is chosen");
+
+    // No Serial Port class at all: one RFCOMM service is taken, two are not guessed at.
+    const QByteArray other = sdpUuid16(0x1234);
+    services = parseSdpAttributeLists(sdpLists(sdpRecord(other, 4, "Printer")
+                                               + sdpRecord(other, 0, "no RFCOMM")));
+    check(pickSerialChannel(services) == 4, "SDP: the only RFCOMM service is taken");
+    services = parseSdpAttributeLists(sdpLists(sdpRecord(other, 4, "A") + sdpRecord(other, 5, "B")));
+    check(pickSerialChannel(services) == 0, "SDP: no guess between two unknown services");
+    services = parseSdpAttributeLists(sdpLists(sdpRecord(iap2, 1, "iAP2")));
+    check(pickSerialChannel(services) == 0, "SDP: iAP2 alone is never chosen");
+
+    // Truncated reply: nothing, and no crash.
+    const QByteArray full = sdpLists(sdpRecord(serialPort, 2, "SPP SERVER"));
+    check(parseSdpAttributeLists(full.left(full.size() - 3)).isEmpty(),
+          "SDP: a truncated reply is rejected");
+    check(parseSdpAttributeLists(QByteArray()).isEmpty(), "SDP: an empty reply is rejected");
+
+    // What the reporter read from channel 1, and what a status frame looks like.
+    check(looksLikeIap2(QByteArray::fromHex("ff550200ee10ff550200ee10ff550200ee10ff550200ee10")),
+          "iAP2 packets on the port are recognised");
+    check(looksLikeIap2(QByteArray::fromHex("0200ee10ff550200ee10")),
+          "iAP2 packets are recognised mid-packet too");
+    QByteArray frame(StatusLength, '\0');
+    frame[0] = char(0x80);
+    frame[1] = 0x20;
+    frame[2] = 'B';
+    frame[10] = char(0xff);
+    frame[11] = 0x55;
+    check(!looksLikeIap2(frame), "a status frame is never taken for iAP2");
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -293,6 +381,7 @@ int main(int argc, char *argv[])
     testGlyphDetection();
     testArtwork();
     testStatusDecoding();
+    testSdpChannel();
 
     std::printf("\n%s\n", failures == 0 ? "all checks passed"
                                         : qPrintable(QStringLiteral("%1 check(s) failed").arg(failures)));
