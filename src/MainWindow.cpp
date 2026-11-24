@@ -7,6 +7,7 @@
 #include "Version.h"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QApplication>
 #include <QCoreApplication>
 #include <QCheckBox>
@@ -39,8 +40,9 @@
 
 namespace ptouch {
 namespace {
-constexpr int PollIntervalMs = 20000;
+constexpr int DefaultPollSeconds = 20;
 constexpr int FreshnessMs = 10000;    // how long a tape reading counts as current
+constexpr const char *PollSettingKey = "statusPollSeconds";
 }
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
@@ -49,6 +51,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     resize(1040, 660);
 
     m_config = Config::load();
+    m_pollSeconds = std::max(0, QSettings().value(QString::fromLatin1(PollSettingKey),
+                                                  DefaultPollSeconds).toInt());
     m_job = new PrintJob(this);
     connect(m_job, &PrintJob::progress, this, [this](const QString &m) { setBusy(true, m); });
     connect(m_job, &PrintJob::finished, this, [this](bool ok, const QString &message) {
@@ -101,6 +105,31 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     connect(setupAction, &QAction::triggered, this, &MainWindow::openSetup);
     QAction *checkAction = menu->addAction(tr("Check tape &now"));
     connect(checkAction, &QAction::triggered, this, [this] { detectTape(false); });
+
+    // Every check opens the Bluetooth connection and closes it again, and some
+    // desktops announce each of those with a notification and a sound. So the
+    // background check can be slowed down or switched off; the check before
+    // printing happens regardless.
+    QMenu *pollMenu = menu->addMenu(tr("Check tape &automatically"));
+    auto *pollGroup = new QActionGroup(this);
+    struct PollChoice {
+        int seconds;
+        QString text;
+    };
+    const PollChoice pollChoices[] = {
+        {0, tr("Off — only at start and before printing")},
+        {20, tr("Every 20 seconds")},
+        {60, tr("Every minute")},
+        {300, tr("Every 5 minutes")},
+    };
+    for (const PollChoice &choice : pollChoices) {
+        QAction *a = pollMenu->addAction(choice.text);
+        a->setCheckable(true);
+        a->setChecked(choice.seconds == m_pollSeconds);
+        pollGroup->addAction(a);
+        const int seconds = choice.seconds;
+        connect(a, &QAction::triggered, this, [this, seconds] { setPollInterval(seconds); });
+    }
     menu->addSeparator();
     QAction *quitAction = menu->addAction(tr("&Quit"));
     connect(quitAction, &QAction::triggered, this, &QWidget::close);
@@ -147,14 +176,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     refresh();
 
     // Keep an eye on which tape is loaded — only while the window is visible, so
-    // the printer is not kept awake needlessly.
+    // the printer is not kept awake needlessly, and never during a job: the CUPS
+    // backend is reading the printer's replies on the same port then.
     m_poll = new QTimer(this);
-    m_poll->setInterval(PollIntervalMs);
     connect(m_poll, &QTimer::timeout, this, [this] {
-        if (isVisible() && !isMinimized())
+        if (isVisible() && !isMinimized() && !m_job->running())
             detectTape(true);
     });
-    m_poll->start();
+    setPollInterval(m_pollSeconds);
 
     QTimer::singleShot(0, this, [this] {
         const SetupState state = checkSetup();
@@ -813,12 +842,30 @@ void MainWindow::saveDiagnostics()
 
 void MainWindow::changeEvent(QEvent *event)
 {
-    // Check again when the window is activated — the tape may have been swapped.
-    if (event->type() == QEvent::ActivationChange && isActiveWindow()
-        && m_detectedAt.isValid() && m_detectedAt.elapsed() > 5000) {
+    // Check again when the window is activated — the tape may have been swapped
+    // while it was hidden. Only as often as the background check would, so
+    // switching windows does not open a connection each time.
+    if (event->type() == QEvent::ActivationChange && isActiveWindow() && m_pollSeconds > 0
+        && m_poll && !m_job->running() && m_detectedAt.isValid()
+        && m_detectedAt.elapsed() > std::max(5, m_pollSeconds) * 1000LL) {
         detectTape(true);
     }
     QMainWindow::changeEvent(event);
+}
+
+void MainWindow::setPollInterval(int seconds)
+{
+    m_pollSeconds = std::max(0, seconds);
+    QSettings().setValue(QString::fromLatin1(PollSettingKey), m_pollSeconds);
+    if (m_pollSeconds > 0 && !m_demoMode) {
+        m_poll->setInterval(m_pollSeconds * 1000);
+        m_poll->start();
+    } else {
+        m_poll->stop();
+    }
+    log::field(QStringLiteral("automatic tape check"),
+               m_pollSeconds > 0 ? QStringLiteral("every %1 s").arg(m_pollSeconds)
+                                 : QStringLiteral("off"));
 }
 
 void MainWindow::storeSettings() const

@@ -24,7 +24,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
   the channel box in the setup wizard. `ptouch-studio channels` lists the
   printer's Bluetooth services and their channels, and the diagnostics report
   now includes them next to the configured channel.
-
+- The background tape check can be slowed down or switched off: Printer → Check
+  tape automatically (off, every 20 seconds, every minute, every 5 minutes).
+  Every check opens and closes the Bluetooth connection, which some desktops
+  announce with a notification and a sound each time. The check before printing
+  happens regardless ([#4](https://github.com/tombueng/ptouch-studio/issues/4)).
+  Checks on window activation now follow the same interval, and none run while a
+  job is printing.
 - Diagnostics report for bug reports: "Help → Save diagnostics report …" in the
   interface, or `ptouch-studio diagnostics [file]` on the command line. It bundles
   build and system details, the print queue and its PPD, the available P-touch

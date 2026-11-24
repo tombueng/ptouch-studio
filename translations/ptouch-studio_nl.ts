@@ -140,6 +140,26 @@
         <translation>Tape &amp;nu controleren</translation>
     </message>
     <message>
+        <source>Check tape &amp;automatically</source>
+        <translation>Tape &amp;automatisch controleren</translation>
+    </message>
+    <message>
+        <source>Off — only at start and before printing</source>
+        <translation>Uit — alleen bij het starten en voor het afdrukken</translation>
+    </message>
+    <message>
+        <source>Every 20 seconds</source>
+        <translation>Elke 20 seconden</translation>
+    </message>
+    <message>
+        <source>Every minute</source>
+        <translation>Elke minuut</translation>
+    </message>
+    <message>
+        <source>Every 5 minutes</source>
+        <translation>Elke 5 minuten</translation>
+    </message>
+    <message>
         <source>&amp;Quit</source>
         <translation>&amp;Afsluiten</translation>
     </message>

@@ -63,6 +63,8 @@ private:
     void setBusy(bool busy, const QString &message = QString());
     void restoreSettings();
     void storeSettings() const;
+    // 0 switches the background tape check off; see PollChoices.
+    void setPollInterval(int seconds);
     // Templates keep everything except the text, which is what usually changes.
     void applySpec(const Spec &spec);
     QMenu *m_templateMenu = nullptr;
@@ -105,6 +107,7 @@ private:
     // a raw pointer would dangle and the destructor could not check it.
     QPointer<StatusWorker> m_worker;
     QTimer *m_poll = nullptr;
+    int m_pollSeconds = 20;         // background tape check, 0 = off
 
     Status m_status;
     double m_detected = 0;          // tape width most recently reported

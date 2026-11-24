@@ -140,6 +140,26 @@
         <translation>Sprawdź taśmę &amp;teraz</translation>
     </message>
     <message>
+        <source>Check tape &amp;automatically</source>
+        <translation>Sprawdzaj taśmę &amp;automatycznie</translation>
+    </message>
+    <message>
+        <source>Off — only at start and before printing</source>
+        <translation>Wyłączone — tylko przy starcie i przed drukowaniem</translation>
+    </message>
+    <message>
+        <source>Every 20 seconds</source>
+        <translation>Co 20 sekund</translation>
+    </message>
+    <message>
+        <source>Every minute</source>
+        <translation>Co minutę</translation>
+    </message>
+    <message>
+        <source>Every 5 minutes</source>
+        <translation>Co 5 minut</translation>
+    </message>
+    <message>
         <source>&amp;Quit</source>
         <translation>&amp;Zakończ</translation>
     </message>

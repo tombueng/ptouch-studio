@@ -140,6 +140,26 @@
         <translation>Controlla nastro &amp;ora</translation>
     </message>
     <message>
+        <source>Check tape &amp;automatically</source>
+        <translation>Controlla il nastro &amp;automaticamente</translation>
+    </message>
+    <message>
+        <source>Off — only at start and before printing</source>
+        <translation>Disattivato — solo all’avvio e prima di stampare</translation>
+    </message>
+    <message>
+        <source>Every 20 seconds</source>
+        <translation>Ogni 20 secondi</translation>
+    </message>
+    <message>
+        <source>Every minute</source>
+        <translation>Ogni minuto</translation>
+    </message>
+    <message>
+        <source>Every 5 minutes</source>
+        <translation>Ogni 5 minuti</translation>
+    </message>
+    <message>
         <source>&amp;Quit</source>
         <translation>&amp;Esci</translation>
     </message>
