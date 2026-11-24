@@ -60,6 +60,36 @@ If the service fails with `/usr/bin/rfcomm: No such file or directory`, the
 on Arch/CachyOS install `bluez-deprecated-tools`, on Debian/Ubuntu it is part of
 `bluez`.
 
+## Wrong RFCOMM channel
+
+```
+Error: wrong RFCOMM channel — the printer answers with Apple iAP2 packets instead of its status.
+Error: incomplete reply (24 bytes)
+```
+
+Status queries fail or return nonsense, and print jobs "complete" without a
+label coming out. The port is bound to a service other than the printer's serial
+port. A PT-P710BT with newer firmware, for one, has Apple's iAP2 service on
+channel 1 and the serial port on channel 2; channel 1 answers with a stream of
+`FF 55 02 00 EE 10` packets.
+
+The setup asks the printer over SDP which channel to use, so with the printer
+switched on, running it again fixes this:
+
+```bash
+ptouch-studio setup
+```
+
+To see what the printer offers and set the channel yourself:
+
+```bash
+ptouch-studio channels                # services and their channels
+ptouch-studio setup --channel 2       # bind a given channel
+```
+
+In the wizard the same is the "RFCOMM channel" box next to "Set up now". The
+channel in use is in `/etc/ptouch-studio/rfcomm.conf` (`PTOUCH_CHANNEL`).
+
 ## The printer blinks red and refuses to settle
 
 Ask it what is wrong:

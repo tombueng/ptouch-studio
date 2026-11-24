@@ -46,6 +46,7 @@ struct SetupState {
     bool queuePresent = false;
 
     Link link = Link::Bluetooth;
+    int channel = 0;              // RFCOMM channel in rfcomm.conf, 0 if not set up
     QString device;
     QString queue;
     QString mac;
@@ -79,6 +80,7 @@ QString modelFromName(const QString &name);
 QString cupsBackendDir();
 
 // Everything that needs root — idempotent. Runs under pkexec or sudo.
+// `channel` 0 asks the printer over SDP which RFCOMM channel its serial port uses.
 int installSystem(const QString &mac, const QString &model, const QString &queue,
                   int index, int channel, const QString &owner,
                   const std::function<void(const QString &)> &log);
@@ -89,8 +91,9 @@ int installSystemUsb(const QString &uri, const QString &model, const QString &qu
                      const std::function<void(const QString &)> &log);
 
 // Command lines the interface uses to trigger the system part through pkexec.
+// `channel` 0 lets the system step look the RFCOMM channel up.
 QStringList systemSetupCommand(const QString &mac, const QString &model,
-                               const QString &queue, const QString &owner);
+                               const QString &queue, const QString &owner, int channel = 0);
 QStringList systemSetupCommandUsb(const QString &uri, const QString &model,
                                   const QString &queue, const QString &owner);
 

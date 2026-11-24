@@ -169,12 +169,26 @@ bool readStatus(int fd, unsigned char *out, int timeoutMs)
     return got == StatusLength;
 }
 
+// iAP2 link packets (FF 55 …) where a status frame (0x80 …) belongs: the port is
+// bound to the printer's Apple accessory service, not to its serial port. Keep in
+// sync with ptouch::looksLikeIap2().
+bool looksLikeIap2(const unsigned char *data, int n)
+{
+    if (n < 2 || data[0] == 0x80)
+        return false;
+    for (int i = 0; i + 1 < n; ++i)
+        if (data[i] == 0xff && data[i + 1] == 0x55)
+            return true;
+    return false;
+}
+
 // Waits until the printer has worked through the job.
 //
 // The printer reports back whenever a phase ends; on top of that we ask every two
 // seconds. It is done once it is back in the waiting state (phase type 0) — until
-// then the connection must stay up.
-void waitUntilIdle(int fd, int expectedLabels)
+// then the connection must stay up. False when the replies show that the job went
+// to the wrong service altogether.
+bool waitUntilIdle(int fd, int expectedLabels)
 {
     const char statusRequest[] = {0x1b, 0x69, 0x53};   // ESC i S
     const double deadline = monotonicSeconds() + DrainTimeoutSeconds;
@@ -189,9 +203,15 @@ void waitUntilIdle(int fd, int expectedLabels)
         if (!writeAll(fd, statusRequest, sizeof(statusRequest))) {
             logInfo("cannot query status — falling back to a fixed wait");
             sleepMs(2000 * expectedLabels);
-            return;
+            return true;
         }
         if (readStatus(fd, status, 3000)) {
+            if (looksLikeIap2(status, StatusLength)) {
+                logFile("status: " + toHex(status, StatusLength) + "(iAP2, not a status frame)");
+                logError("wrong RFCOMM channel — the printer answers with Apple iAP2 packets. "
+                         "Run \"ptouch-studio setup\" again.");
+                return false;
+            }
             const int errors = status[8] | status[9];
             const int statusType = status[18];   // 2 = error, 1 = finished
             const int phase = status[19];        // 1 = printing
@@ -204,7 +224,7 @@ void waitUntilIdle(int fd, int expectedLabels)
             if (errors || statusType == 2) {
                 logError("printer reports an error (0x" + std::to_string(status[8])
                          + "/0x" + std::to_string(status[9]) + ")");
-                return;
+                return true;
             }
             if (phase != 0) {
                 seenPrinting++;
@@ -214,13 +234,14 @@ void waitUntilIdle(int fd, int expectedLabels)
                 // Two quiet readings in a row: the job has gone through.
                 if (idleReadings >= 2 && (seenPrinting > 0 || idleReadings >= 4)) {
                     logInfo("printer is back in waiting state");
-                    return;
+                    return true;
                 }
             }
         }
         sleepMs(2000);
     }
     logInfo("timed out waiting for the printer to finish");
+    return true;
 }
 
 } // namespace
@@ -286,8 +307,10 @@ int main(int argc, char *argv[])
     ::tcdrain(fd);
     logInfo(std::to_string(data.size()) + " bytes sent");
 
-    waitUntilIdle(fd, copies > 0 ? copies : 1);
+    const bool reachedPrinter = waitUntilIdle(fd, copies > 0 ? copies : 1);
     ::close(fd);
+    if (!reachedPrinter)
+        return BackendFailed;   // nothing was printed — do not report the job as done
 
     logInfo("job complete");
     return BackendOk;

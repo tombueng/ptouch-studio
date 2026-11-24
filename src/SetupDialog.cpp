@@ -2,6 +2,7 @@
 
 #include "Config.h"
 #include "Log.h"
+#include "Sdp.h"
 
 #include <QApplication>
 #include <QComboBox>
@@ -14,6 +15,7 @@
 #include <QProcess>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QStandardPaths>
 #include <QVBoxLayout>
 
@@ -79,6 +81,24 @@ SetupDialog::SetupDialog(QWidget *parent) : QDialog(parent)
         QStringLiteral("Creates the access rule and the print queue — over Bluetooth "
                        "also the RFCOMM service and the CUPS backend. This asks for the "
                        "administrator password once.")));
+    // The serial port is not on the same RFCOMM channel on every printer, so the
+    // setup asks the printer. The box is for the odd device that answers wrongly.
+    auto *channelRow = new QHBoxLayout;
+    m_channelBox = new QSpinBox;
+    m_channelBox->setRange(0, MaxRfcommChannel);
+    m_channelBox->setSpecialValueText(tr("automatic"));
+    m_channelBox->setValue(0);
+    m_channelBox->setToolTip(
+        tr("Bluetooth only. \"automatic\" asks the printer which channel its serial "
+           "port uses. Set a number only if status queries keep failing; "
+           "\"ptouch-studio channels\" lists what the printer offers."));
+    auto *channelLabel = new QLabel(tr("RFCOMM channel:"));
+    channelLabel->setBuddy(m_channelBox);
+    channelRow->addWidget(channelLabel);
+    channelRow->addWidget(m_channelBox);
+    channelRow->addStretch(1);
+    systemLayout->addLayout(channelRow);
+
     m_systemButton = new QPushButton(tr("Set up now"));
     connect(m_systemButton, &QPushButton::clicked, this, &SetupDialog::runSystemSetup);
     systemLayout->addWidget(m_systemButton);
@@ -135,6 +155,7 @@ void SetupDialog::setWorking(bool working, const QString &what)
     m_scanButton->setEnabled(!working);
     m_pairButton->setEnabled(!working);
     m_systemButton->setEnabled(!working);
+    m_channelBox->setEnabled(!working);
     m_recheckButton->setEnabled(!working);
     if (working && !what.isEmpty())
         appendLog(what);
@@ -176,7 +197,10 @@ void SetupDialog::updateView()
                  .arg(mark(m_state.dependenciesOk()));
     lines << tr("%1 printer paired%2").arg(mark(m_state.paired),
               m_state.mac.isEmpty() ? QString() : tr(" (%1)").arg(m_state.mac));
-    lines << tr("%1 RFCOMM service running").arg(mark(m_state.rfcommActive));
+    lines << (m_state.channel > 0
+                  ? tr("%1 RFCOMM service running (channel %2)")
+                        .arg(mark(m_state.rfcommActive)).arg(m_state.channel)
+                  : tr("%1 RFCOMM service running").arg(mark(m_state.rfcommActive)));
     lines << tr("%1 access to %2").arg(mark(m_state.deviceAccessible),
                                                    m_state.device);
     lines << tr("%1 CUPS backend installed").arg(mark(m_state.cupsBackend));
@@ -264,7 +288,7 @@ void SetupDialog::runSystemSetup()
     const QString owner = qEnvironmentVariable("USER");
     const QStringList command = choice.usb
         ? systemSetupCommandUsb(choice.uri, choice.model, queue, owner)
-        : systemSetupCommand(choice.mac, choice.model, queue, owner);
+        : systemSetupCommand(choice.mac, choice.model, queue, owner, m_channelBox->value());
 
     // Root steps go through pkexec in one go; without it, show the sudo command.
     const QString launcher = QStandardPaths::findExecutable(QStringLiteral("pkexec"));

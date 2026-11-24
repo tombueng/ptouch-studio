@@ -6,6 +6,7 @@
 #include "Printer.h"
 #include "MainWindow.h"
 #include "Provision.h"
+#include "Sdp.h"
 #include "Status.h"
 #include "Version.h"
 
@@ -276,13 +277,34 @@ int cmdPrint(const QStringList &args)
     return 0;
 }
 
+// "auto" (or nothing) → 0, which makes the system step ask the printer.
+bool parseChannel(const QString &value, int *channel)
+{
+    const QString v = value.trimmed();
+    if (v.isEmpty() || v.compare(QStringLiteral("auto"), Qt::CaseInsensitive) == 0) {
+        *channel = 0;
+        return true;
+    }
+    bool ok = false;
+    const int n = v.toInt(&ok);
+    if (!ok || n < 1 || n > MaxRfcommChannel) {
+        err() << QStringLiteral("--channel: expected 1-%1 or \"auto\", got \"%2\"")
+                     .arg(MaxRfcommChannel).arg(v) << Qt::endl;
+        return false;
+    }
+    *channel = n;
+    return true;
+}
+
 int cmdCheck()
 {
     const SetupState s = checkSetup();
     const auto mark = [](bool ok) { return ok ? QStringLiteral("✓") : QStringLiteral("✗"); };
     out() << mark(s.dependenciesOk()) << QStringLiteral(" system tools") << Qt::endl;
     out() << mark(s.paired) << QStringLiteral(" printer paired %1").arg(s.mac) << Qt::endl;
-    out() << mark(s.rfcommActive) << QStringLiteral(" RFCOMM service") << Qt::endl;
+    out() << mark(s.rfcommActive) << QStringLiteral(" RFCOMM service")
+          << (s.channel > 0 ? QStringLiteral(" (channel %1)").arg(s.channel) : QString())
+          << Qt::endl;
     out() << mark(s.deviceAccessible) << QStringLiteral(" access to %1").arg(s.device)
           << Qt::endl;
     out() << mark(s.cupsBackend) << QStringLiteral(" CUPS backend") << Qt::endl;
@@ -295,6 +317,51 @@ int cmdCheck()
             out() << QStringLiteral("  · ") << t << Qt::endl;
     }
     return s.ready() ? 0 : 1;
+}
+
+// What the printer announces over SDP, and which channel the setup would take.
+// The way to find the right value for "setup --channel" by hand.
+int cmdChannels(const QStringList &args)
+{
+    const Config cfg = Config::load();
+    QString mac = args.value(1);
+    if (mac.isEmpty())
+        mac = cfg.mac.isEmpty() ? systemConfValue(QStringLiteral("PTOUCH_MAC")) : cfg.mac;
+    if (mac.isEmpty()) {
+        err() << QStringLiteral("No printer configured — give its Bluetooth address "
+                                "(see \"ptouch-studio scan\").") << Qt::endl;
+        return 2;
+    }
+
+    QString error;
+    const QList<SdpService> services = queryRfcommServices(mac, &error);
+    if (services.isEmpty()) {
+        err() << error << Qt::endl;
+        return 1;
+    }
+    for (const SdpService &s : services)
+        out() << s.describe() << Qt::endl;
+
+    const int pick = pickSerialChannel(services);
+    const int configured = systemConfValue(QStringLiteral("PTOUCH_MAC"))
+                                       .compare(mac, Qt::CaseInsensitive) == 0
+                                   ? systemConfValue(QStringLiteral("PTOUCH_CHANNEL")).toInt()
+                                   : 0;
+    out() << Qt::endl;
+    if (pick > 0)
+        out() << QStringLiteral("Serial port: channel %1").arg(pick) << Qt::endl;
+    else
+        out() << QStringLiteral("No serial port service recognised — try the channels above "
+                                "with \"ptouch-studio setup --channel N\".") << Qt::endl;
+    if (configured > 0) {
+        out() << QStringLiteral("Configured:  channel %1").arg(configured) << Qt::endl;
+        if (pick > 0 && pick != configured) {
+            out() << QStringLiteral("The port is bound to the wrong channel. Run "
+                                    "\"ptouch-studio setup\" again to fix it.") << Qt::endl;
+            return 1;
+        }
+    }
+    return 0;
 }
 
 int cmdReset(const QStringList &args)
@@ -352,8 +419,16 @@ int cmdSetup(const QStringList &args)
                  QStringLiteral("name"), QString::fromLatin1(DefaultQueue)});
     p.addOption({QStringLiteral("bluetooth"),
                  QStringLiteral("use Bluetooth even if a USB printer is present")});
+    p.addOption({QStringLiteral("channel"),
+                 QStringLiteral("RFCOMM channel of the printer (1-30), or \"auto\" to ask "
+                                "the printer"),
+                 QStringLiteral("n"), QStringLiteral("auto")});
     p.addHelpOption();
     p.process(args);
+
+    int channel = 0;
+    if (!parseChannel(p.value(QStringLiteral("channel")), &channel))
+        return 2;
 
     Config cfg = Config::load();
     QString mac = p.value(QStringLiteral("mac"));
@@ -433,7 +508,7 @@ int cmdSetup(const QStringList &args)
 
     const QString queue = p.value(QStringLiteral("queue"));
     QStringList command = systemSetupCommand(mac, model, queue,
-                                             qEnvironmentVariable("USER"));
+                                             qEnvironmentVariable("USER"), channel);
     out() << QStringLiteral("System setup (needs administrator rights) …") << Qt::endl;
 
     QProcess process;
@@ -492,8 +567,9 @@ int cmdSetupSystem(const QStringList &args)
                  QStringLiteral("name"), QString::fromLatin1(DefaultQueue)});
     p.addOption({QStringLiteral("index"), QStringLiteral("RFCOMM index"),
                  QStringLiteral("n"), QStringLiteral("0")});
-    p.addOption({QStringLiteral("channel"), QStringLiteral("RFCOMM channel"),
-                 QStringLiteral("n"), QStringLiteral("1")});
+    p.addOption({QStringLiteral("channel"),
+                 QStringLiteral("RFCOMM channel (1-30), or \"auto\" to ask the printer"),
+                 QStringLiteral("n"), QStringLiteral("auto")});
     p.addOption({QStringLiteral("owner"), QStringLiteral("user allowed to use the port"),
                  QStringLiteral("name"), QString()});
     p.addHelpOption();
@@ -511,10 +587,13 @@ int cmdSetupSystem(const QStringList &args)
         err() << QStringLiteral("give either --mac or --usb") << Qt::endl;
         return 2;
     }
+    int channel = 0;
+    if (!parseChannel(p.value(QStringLiteral("channel")), &channel))
+        return 2;
     return installSystem(p.value(QStringLiteral("mac")), p.value(QStringLiteral("model")),
                          p.value(QStringLiteral("queue")),
                          p.value(QStringLiteral("index")).toInt(),
-                         p.value(QStringLiteral("channel")).toInt(),
+                         channel,
                          p.value(QStringLiteral("owner")), log);
 }
 
@@ -562,7 +641,9 @@ QString usage()
         "  ptouch-studio scan                look for P-touch devices\n"
         "  ptouch-studio reset               clear a pending error state\n"
         "  ptouch-studio setup               set up the printer\n"
+        "      [--channel N|auto]            RFCOMM channel; auto asks the printer\n"
         "  ptouch-studio check               check the setup\n"
+        "  ptouch-studio channels [address]  list the printer's Bluetooth services\n"
         "  ptouch-studio diagnostics [file]  collect a full report for bug reports\n"
         "\n"
         "\"ptouch-studio print --help\" lists the layout options.\n")
@@ -576,6 +657,7 @@ int runCli(const QStringList &arguments)
     if (command == QStringLiteral("status"))       return cmdStatus(arguments.mid(1));
     if (command == QStringLiteral("print"))        return cmdPrint(arguments.mid(1));
     if (command == QStringLiteral("check"))        return cmdCheck();
+    if (command == QStringLiteral("channels"))     return cmdChannels(arguments.mid(1));
     if (command == QStringLiteral("scan"))         return cmdScan();
     if (command == QStringLiteral("reset"))        return cmdReset(arguments.mid(1));
     if (command == QStringLiteral("setup"))        return cmdSetup(arguments.mid(1));

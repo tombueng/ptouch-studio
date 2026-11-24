@@ -42,6 +42,7 @@ add_library(ptouch-core STATIC
     src/Config.cpp
     src/Printer.cpp
     src/Provision.cpp
+    src/Sdp.cpp
     src/Log.cpp)
 target_include_directories(ptouch-core PUBLIC src ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(ptouch-core PUBLIC Qt6::Core Qt6::Gui)

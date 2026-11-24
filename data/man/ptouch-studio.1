@@ -24,10 +24,20 @@ Add \fB\-\-json\fR for machine-readable output.
 Look for P-touch devices in range.
 .TP
 .B setup
-Find, pair and configure the printer.
+Find, pair and configure the printer. Over Bluetooth the RFCOMM channel of the
+printer's serial port is looked up over SDP;
+.BI \-\-channel " n"
+binds channel \fIn\fR (1\(en30) instead.
 .TP
 .B check
 Check the setup and list what is missing.
+.TP
+.B channels \fR[\fIaddress\fR]
+List the Bluetooth services of the printer with their RFCOMM channels, and the
+channel the setup would choose.
+.TP
+.B diagnostics \fR[\fIfile\fR]
+Collect a report for bug reports.
 .SH PRINT OPTIONS
 .TP
 .BR \-w ", " \-\-width " " \fImm\fR
@@ -68,7 +78,7 @@ Write a PDF instead of printing.
 Printer, queue and RFCOMM port of this user.
 .TP
 .I /etc/ptouch-studio/rfcomm.conf
-Bluetooth address and port index, written by the setup.
+Bluetooth address, port index and RFCOMM channel, written by the setup.
 .SH EXIT STATUS
 Zero on success. Non-zero when the printer is unreachable, the setup is
 incomplete or the job could not be delivered.

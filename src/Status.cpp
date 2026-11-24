@@ -1,6 +1,7 @@
 #include "Status.h"
 
 #include "Log.h"
+#include "Sdp.h"
 
 #include <QByteArray>
 #include <QCoreApplication>
@@ -189,6 +190,15 @@ Status queryStatus(const QString &device, int timeoutMs)
     }
     ::close(fd);
 
+    // Bound to the iAP2 service instead of the serial port: whatever comes back,
+    // it is not a status frame, and decoding it would invent tape widths.
+    if (looksLikeIap2(data)) {
+        s.error = QStringLiteral("wrong RFCOMM channel — the printer answers with Apple "
+                                 "iAP2 packets instead of its status. Run the setup again.");
+        logStatus(device, data, s);
+        return s;
+    }
+
     if (data.size() < StatusLength) {
         s.error = data.isEmpty()
                       ? QStringLiteral("printer does not answer — switched on? "
@@ -210,7 +220,8 @@ Status queryStatusRetry(const QString &device, int attempts)
         if (s.error.isEmpty())
             return s;
         if (s.error.contains(QStringLiteral("no access"))
-            || s.error.contains(QStringLiteral("is missing")))
+            || s.error.contains(QStringLiteral("is missing"))
+            || s.error.contains(QStringLiteral("wrong RFCOMM channel")))
             return s;                       // setup problem: retrying will not help
         QThread::msleep(1000);
     }

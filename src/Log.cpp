@@ -2,6 +2,7 @@
 
 #include "Config.h"
 #include "Provision.h"
+#include "Sdp.h"
 #include "Version.h"
 
 #include <QCoreApplication>
@@ -291,6 +292,29 @@ QString collectDiagnostics()
     if (!cfg.mac.isEmpty())
         o << "bluetoothctl info:\n"
           << run(QStringLiteral("bluetoothctl"), {QStringLiteral("info"), cfg.mac}) << "\n";
+
+    // Which channel the serial port really is on, next to the one bound in
+    // rfcomm.conf — a mismatch makes every status reply garbage.
+    {
+        const QString mac = cfg.mac.isEmpty() ? systemConfValue(QStringLiteral("PTOUCH_MAC"))
+                                              : cfg.mac;
+        head(QStringLiteral("SDP services (RFCOMM channels)"));
+        if (mac.isEmpty()) {
+            o << "(no Bluetooth printer configured)\n";
+        } else {
+            QString error;
+            const QList<SdpService> services = queryRfcommServices(mac, &error);
+            for (const SdpService &s : services)
+                o << s.describe() << "\n";
+            if (services.isEmpty())
+                o << "query failed: " << error << "\n";
+            const int pick = pickSerialChannel(services);
+            o << "serial port channel : " << (pick > 0 ? QString::number(pick)
+                                                       : QStringLiteral("not recognised")) << "\n";
+            o << "configured channel  : " << systemConfValue(QStringLiteral("PTOUCH_CHANNEL"))
+              << "\n";
+        }
+    }
 
     head(QStringLiteral("ptouch-rfcomm.service"));
     o << run(QStringLiteral("systemctl"),
