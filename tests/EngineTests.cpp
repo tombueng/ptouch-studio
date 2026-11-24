@@ -8,13 +8,19 @@
 #include "Sdp.h"
 #include "Status.h"
 
+#include <QElapsedTimer>
+#include <QFile>
 #include <QGuiApplication>
 #include <QImage>
 #include <QProcess>
 #include <QTemporaryDir>
 
+#include <cerrno>
 #include <cmath>
 #include <cstdio>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 using namespace ptouch;
 
@@ -364,6 +370,40 @@ void testSdpChannel()
     check(!looksLikeIap2(frame), "a status frame is never taken for iAP2");
 }
 
+// A FIFO opened for writing blocks until someone reads — the same way an RFCOMM
+// port blocks while the printer is switched off.
+void testOpenTimeout(const QString &workDir)
+{
+    const QByteArray fifo = (workDir + QStringLiteral("/fifo")).toLocal8Bit();
+    if (::mkfifo(fifo.constData(), 0600) != 0) {
+        std::printf("skipped: cannot create a FIFO\n");
+        return;
+    }
+    QElapsedTimer timer;
+    timer.start();
+    int error = 0;
+    int fd = openWithTimeout(fifo, O_WRONLY, 300, &error);
+    const qint64 took = timer.elapsed();
+    check(fd < 0 && error == ETIMEDOUT, "a hanging open() is given up with ETIMEDOUT");
+    checkNear(double(took), 300, 250, "it is given up after the timeout (ms)");
+    if (fd >= 0)
+        ::close(fd);
+
+    // The interrupt is aimed at that one call: a second one right after works.
+    const QByteArray file = (workDir + QStringLiteral("/plain")).toLocal8Bit();
+    QFile plain(QString::fromLocal8Bit(file));
+    check(plain.open(QIODevice::WriteOnly), "test file created");
+    plain.close();
+    timer.restart();
+    fd = openWithTimeout(file, O_RDWR, 300, &error);
+    check(fd >= 0 && timer.elapsed() < 100, "an open() that does not block returns at once");
+    if (fd >= 0)
+        ::close(fd);
+
+    fd = openWithTimeout(QByteArray("/nonexistent/rfcomm0"), O_RDWR, 300, &error);
+    check(fd < 0 && error == ENOENT, "other errors are passed through");
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -382,6 +422,7 @@ int main(int argc, char *argv[])
     testArtwork();
     testStatusDecoding();
     testSdpChannel();
+    testOpenTimeout(dir.path());
 
     std::printf("\n%s\n", failures == 0 ? "all checks passed"
                                         : qPrintable(QStringLiteral("%1 check(s) failed").arg(failures)));

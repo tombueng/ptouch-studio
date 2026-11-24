@@ -13,10 +13,16 @@
 #include <QMap>
 
 #include <cerrno>
+#include <chrono>
+#include <condition_variable>
+#include <csignal>
 #include <cstring>
 #include <fcntl.h>
+#include <mutex>
 #include <poll.h>
+#include <pthread.h>
 #include <termios.h>
+#include <thread>
 #include <unistd.h>
 
 namespace ptouch {
@@ -91,7 +97,68 @@ void logStatus(const QString &device, const QByteArray &raw, const Status &s)
                             : QStringLiteral("  [%1]").arg(QString::fromLatin1(raw.toHex(' ')))));
 }
 
+void ignoreSignal(int) {}
+
+// The signal that interrupts a hanging open(). A real-time one, so it collides
+// with nothing Qt or glibc use, and installed without SA_RESTART — with it the
+// kernel would simply restart the open() and nothing would be gained.
+int interruptSignal()
+{
+    static const int sig = [] {
+        const int s = SIGRTMIN + 5;
+        struct sigaction action{};
+        action.sa_handler = ignoreSignal;
+        sigemptyset(&action.sa_mask);
+        action.sa_flags = 0;
+        ::sigaction(s, &action, nullptr);
+        return s;
+    }();
+    return sig;
+}
+
 } // namespace
+
+int openWithTimeout(const QByteArray &path, int flags, int timeoutMs, int *error)
+{
+    const int sig = interruptSignal();
+    sigset_t set;
+    sigemptyset(&set);
+    sigaddset(&set, sig);
+    ::pthread_sigmask(SIG_UNBLOCK, &set, nullptr);
+
+    // A watchdog thread signals this one once the time is up. The signal is
+    // directed at this thread alone, and only sent while open() is still
+    // running; it is repeated in case the first one lands a moment before the
+    // call starts waiting.
+    std::mutex mutex;
+    std::condition_variable wake;
+    bool done = false;
+    bool interrupted = false;
+    const pthread_t caller = ::pthread_self();
+    std::thread watchdog([&] {
+        std::unique_lock<std::mutex> lock(mutex);
+        if (wake.wait_for(lock, std::chrono::milliseconds(timeoutMs), [&] { return done; }))
+            return;
+        interrupted = true;
+        while (!done) {
+            ::pthread_kill(caller, sig);
+            wake.wait_for(lock, std::chrono::milliseconds(200), [&] { return done; });
+        }
+    });
+
+    const int fd = ::open(path.constData(), flags);
+    const int e = errno;
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        done = true;
+    }
+    wake.notify_all();
+    watchdog.join();
+
+    if (fd < 0 && error)
+        *error = e == EINTR && interrupted ? ETIMEDOUT : e;
+    return fd;
+}
 
 Status decodeStatus(const QByteArray &d)
 {
@@ -124,11 +191,16 @@ Status queryStatus(const QString &device, int timeoutMs)
     Status s;
     const QByteArray path = device.toLocal8Bit();
 
-    // A blocking open is what brings up the Bluetooth connection.
-    const int fd = ::open(path.constData(), O_RDWR | O_NOCTTY);
+    // A blocking open is what brings up the Bluetooth connection — bounded,
+    // because with the printer switched off it would never return.
+    int e = 0;
+    const int fd = openWithTimeout(path, O_RDWR | O_NOCTTY, ConnectTimeoutMs, &e);
     if (fd < 0) {
-        const int e = errno;
-        if (e == EACCES)
+        if (e == ETIMEDOUT)
+            s.error = QStringLiteral("no connection to the printer within %1 s — switched on "
+                                     "and in range? (it powers off by itself after a while)")
+                          .arg(ConnectTimeoutMs / 1000);
+        else if (e == EACCES)
             s.error = QStringLiteral("no access to %1 — setup incomplete").arg(device);
         else if (e == ENOENT)
             s.error = QStringLiteral("%1 is missing — is the RFCOMM service running?")
@@ -219,10 +291,13 @@ Status queryStatusRetry(const QString &device, int attempts)
         s = queryStatus(device);
         if (s.error.isEmpty())
             return s;
+        // Setup problems, and a connection attempt that already took its full
+        // time: retrying will not help.
         if (s.error.contains(QStringLiteral("no access"))
             || s.error.contains(QStringLiteral("is missing"))
+            || s.error.contains(QStringLiteral("no connection to the printer"))
             || s.error.contains(QStringLiteral("wrong RFCOMM channel")))
-            return s;                       // setup problem: retrying will not help
+            return s;
         QThread::msleep(1000);
     }
     return s;
@@ -250,11 +325,16 @@ bool resetPrinter(const QString &device, QString *error)
 {
     // ESC @ clears the buffer and the error state. That is all a P-touch offers
     // as a remote reset — it cannot be power-cycled over the wire.
-    const int fd = ::open(device.toLocal8Bit().constData(), O_RDWR | O_NOCTTY);
+    int e = 0;
+    const int fd = openWithTimeout(device.toLocal8Bit(), O_RDWR | O_NOCTTY,
+                                   ConnectTimeoutMs, &e);
     if (fd < 0) {
         if (error)
-            *error = QStringLiteral("%1: %2").arg(device,
-                         QString::fromLocal8Bit(std::strerror(errno)));
+            *error = e == ETIMEDOUT
+                         ? QStringLiteral("%1: no connection to the printer within %2 s — "
+                                          "switched on?").arg(device).arg(ConnectTimeoutMs / 1000)
+                         : QStringLiteral("%1: %2").arg(device,
+                               QString::fromLocal8Bit(std::strerror(e)));
         return false;
     }
     const QByteArray invalidate(100, '\0');
