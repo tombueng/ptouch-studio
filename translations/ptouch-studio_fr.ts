@@ -140,6 +140,26 @@
         <translation>Vérifier la bande &amp;maintenant</translation>
     </message>
     <message>
+        <source>Check tape &amp;automatically</source>
+        <translation>Vérifier la bande &amp;automatiquement</translation>
+    </message>
+    <message>
+        <source>Off — only at start and before printing</source>
+        <translation>Désactivé — seulement au démarrage et avant l’impression</translation>
+    </message>
+    <message>
+        <source>Every 20 seconds</source>
+        <translation>Toutes les 20 secondes</translation>
+    </message>
+    <message>
+        <source>Every minute</source>
+        <translation>Toutes les minutes</translation>
+    </message>
+    <message>
+        <source>Every 5 minutes</source>
+        <translation>Toutes les 5 minutes</translation>
+    </message>
+    <message>
         <source>&amp;Quit</source>
         <translation>&amp;Quitter</translation>
     </message>

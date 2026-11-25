@@ -140,6 +140,26 @@
         <translation>Comprobar cinta &amp;ahora</translation>
     </message>
     <message>
+        <source>Check tape &amp;automatically</source>
+        <translation>Comprobar la cinta &amp;automáticamente</translation>
+    </message>
+    <message>
+        <source>Off — only at start and before printing</source>
+        <translation>Desactivado — solo al iniciar y antes de imprimir</translation>
+    </message>
+    <message>
+        <source>Every 20 seconds</source>
+        <translation>Cada 20 segundos</translation>
+    </message>
+    <message>
+        <source>Every minute</source>
+        <translation>Cada minuto</translation>
+    </message>
+    <message>
+        <source>Every 5 minutes</source>
+        <translation>Cada 5 minutos</translation>
+    </message>
+    <message>
         <source>&amp;Quit</source>
         <translation>&amp;Salir</translation>
     </message>

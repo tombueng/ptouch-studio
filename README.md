@@ -212,6 +212,7 @@ More in [docs/architecture.md](docs/architecture.md).
 | "wrong RFCOMM channel" or "incomplete reply" | The port is bound to the wrong service. Run `ptouch-studio setup` again with the printer switched on. |
 | Job stays in the queue | The printer was unreachable. CUPS holds the job for 300 s and prints it once the device is back. |
 | Queue stopped | `cupsenable PT-Label` |
+| Bluetooth notifications every few seconds | The tape check connects each time. Slow it down or switch it off under Printer → Check tape automatically. |
 
 More in [docs/troubleshooting.md](docs/troubleshooting.md).
 

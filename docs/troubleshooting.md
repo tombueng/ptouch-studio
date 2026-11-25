@@ -90,6 +90,23 @@ ptouch-studio setup --channel 2       # bind a given channel
 In the wizard the same is the "RFCOMM channel" box next to "Set up now". The
 channel in use is in `/etc/ptouch-studio/rfcomm.conf` (`PTOUCH_CHANNEL`).
 
+## Bluetooth connects and disconnects every few seconds
+
+While the window is open, P-touch Studio asks the printer every 20 seconds which
+tape is loaded, so a swapped cassette shows up without asking. Each of those
+checks opens the Bluetooth connection and closes it again — there is no way to
+read the status without one — and some desktops (Blueman, for one) announce every
+connect and disconnect with a notification and a sound.
+
+**Printer → Check tape automatically** slows the check down to once a minute or
+every five minutes, or switches it off. Off, the tape is still read at start, on
+**Check tape now**, after the setup and before every print, so a label never goes
+out on the wrong tape width.
+
+A connection held open for the whole session would avoid the notifications, but
+it would keep the printer from switching itself off and get in the way of the
+print queue, which talks to the printer over the same port.
+
 ## The printer blinks red and refuses to settle
 
 Ask it what is wrong:

@@ -140,6 +140,26 @@
         <translation>Band &amp;jetzt prüfen</translation>
     </message>
     <message>
+        <source>Check tape &amp;automatically</source>
+        <translation>Band &amp;automatisch prüfen</translation>
+    </message>
+    <message>
+        <source>Off — only at start and before printing</source>
+        <translation>Aus — nur beim Start und vor dem Drucken</translation>
+    </message>
+    <message>
+        <source>Every 20 seconds</source>
+        <translation>Alle 20 Sekunden</translation>
+    </message>
+    <message>
+        <source>Every minute</source>
+        <translation>Jede Minute</translation>
+    </message>
+    <message>
+        <source>Every 5 minutes</source>
+        <translation>Alle 5 Minuten</translation>
+    </message>
+    <message>
         <source>&amp;Quit</source>
         <translation>&amp;Beenden</translation>
     </message>
