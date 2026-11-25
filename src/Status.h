@@ -39,6 +39,17 @@ Status queryStatusRetry(const QString &device, int attempts = 3);
 
 Status decodeStatus(const QByteArray &data);
 
+// open() that gives up after `timeoutMs`. On an RFCOMM port a plain open() never
+// fails when the printer is switched off: the kernel hangs the half-open port up
+// and tty_open() starts over, paging the printer every five seconds for as long
+// as nothing interrupts it. On timeout this returns -1 with *error = ETIMEDOUT;
+// otherwise *error is the errno of a failed open().
+int openWithTimeout(const QByteArray &path, int flags, int timeoutMs, int *error);
+
+// How long a status query waits for the Bluetooth connection. A printer that is
+// on connects within two or three seconds; one page attempt takes about five.
+constexpr int ConnectTimeoutMs = 8000;
+
 // A character device that speaks the P-touch protocol.
 struct Port {
     QString path;     // /dev/usb/lp0 or /dev/rfcomm0

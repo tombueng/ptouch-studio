@@ -206,7 +206,7 @@ More in [docs/architecture.md](docs/architecture.md).
 
 | Symptom | Cause and cure |
 |---|---|
-| "printer does not answer" | The device powers itself off after a while. Switching it on is enough. |
+| "printer does not answer" or "no connection to the printer" | The device powers itself off after a while. Switching it on is enough. |
 | "no access to /dev/rfcomm0" | Setup incomplete — `ptouch-studio check` names the missing step. |
 | "/dev/rfcomm0 is missing" | `systemctl status ptouch-rfcomm.service` |
 | "wrong RFCOMM channel" or "incomplete reply" | The port is bound to the wrong service. Run `ptouch-studio setup` again with the printer switched on. |

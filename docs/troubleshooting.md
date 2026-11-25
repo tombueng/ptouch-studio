@@ -11,11 +11,14 @@ It lists every setup step on its own and names what is missing.
 ## The printer does not answer
 
 ```
+Error: no connection to the printer within 8 s — switched on and in range?
 Error: printer does not answer — switched on? (it powers off by itself after a while)
 ```
 
-P-touch devices switch themselves off after a few minutes of inactivity. You can
-verify that without spending tape:
+P-touch devices switch themselves off after a few minutes of inactivity. The
+first message means the Bluetooth connection could not be made at all, the second
+that the connection came up but no status followed. You can verify that the
+printer is off without spending tape:
 
 ```bash
 sudo l2ping -c 2 <MAC>      # "Host is down" means the device is off

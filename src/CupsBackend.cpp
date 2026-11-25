@@ -16,6 +16,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <poll.h>
+#include <signal.h>
 #include <string>
 #include <sys/stat.h>
 #include <termios.h>
@@ -32,6 +33,13 @@ constexpr int BackendHold = 6;
 
 constexpr int StatusLength = 32;
 constexpr int OpenAttempts = 8;
+// A blocking open() of an RFCOMM port does not fail when the printer is off: the
+// kernel hangs the half-open port up and tty_open() starts over, paging the
+// printer every five seconds until something interrupts it. Without a limit the
+// job would sit in "processing" for good instead of being held after the last
+// attempt. Eight attempts of 15 s plus the pauses leave about two and a half
+// minutes to switch the printer on.
+constexpr unsigned OpenTimeoutSeconds = 15;
 constexpr int DrainTimeoutSeconds = 300;
 
 // This backend runs as root under cupsd; its stderr goes to /var/log/cups/error_log,
@@ -96,16 +104,30 @@ void sleepMs(int ms)
     nanosleep(&ts, nullptr);
 }
 
+void onAlarm(int) {}
+
 int openDevice(const std::string &device)
 {
+    // SIGALRM ends a hanging open() with EINTR. No SA_RESTART, or the kernel
+    // would just restart the call.
+    struct sigaction action{};
+    action.sa_handler = onAlarm;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = 0;
+    ::sigaction(SIGALRM, &action, nullptr);
+
     for (int attempt = 1; attempt <= OpenAttempts; ++attempt) {
         // A blocking open is what brings up the Bluetooth connection.
+        ::alarm(OpenTimeoutSeconds);
         const int fd = ::open(device.c_str(), O_RDWR | O_NOCTTY);
+        const int e = errno;
+        ::alarm(0);
         if (fd >= 0)
             return fd;
-        const int e = errno;
-        logInfo("connection attempt " + std::to_string(attempt) + " to " + device
-                + ": " + std::strerror(e));
+        logInfo("connection attempt " + std::to_string(attempt) + " to " + device + ": "
+                + (e == EINTR ? "no connection within " + std::to_string(OpenTimeoutSeconds)
+                                    + " s"
+                              : std::string(std::strerror(e))));
         if (e == ENOENT) {
             // No RFCOMM port bound — retrying will not change that.
             logError("port " + device + " does not exist — is ptouch-rfcomm.service running?");

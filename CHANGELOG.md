@@ -8,6 +8,12 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- With the printer switched off, a status query, `ptouch-studio reset` and the
+  CUPS backend no longer wait forever. Opening the RFCOMM port never fails on its
+  own: the kernel hangs the half-open port up and starts the open over, paging
+  the printer every five seconds. Status queries now give up after 8 seconds with
+  "no connection to the printer", and the backend tries for about two and a half
+  minutes and then holds the job instead of leaving it in "processing".
 - The Bluetooth setup no longer assumes RFCOMM channel 1. It asks the printer
   over SDP which channel its serial port is on — a PT-P710BT with newer firmware
   has Apple's iAP2 service on channel 1 and the serial port on channel 2, and
