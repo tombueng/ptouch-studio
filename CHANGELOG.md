@@ -6,23 +6,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Fixed
-
-- With the printer switched off, a status query, `ptouch-studio reset` and the
-  CUPS backend no longer wait forever. Opening the RFCOMM port never fails on its
-  own: the kernel hangs the half-open port up and starts the open over, paging
-  the printer every five seconds. Status queries now give up after 8 seconds with
-  "no connection to the printer", and the backend tries for about two and a half
-  minutes and then holds the job instead of leaving it in "processing".
-- The Bluetooth setup no longer assumes RFCOMM channel 1. It asks the printer
-  over SDP which channel its serial port is on — a PT-P710BT with newer firmware
-  has Apple's iAP2 service on channel 1 and the serial port on channel 2, and
-  binding the wrong one made every status reply garbage while print jobs were
-  reported as done ([#3](https://github.com/tombueng/ptouch-studio/issues/3)).
-  If the printer cannot be reached during setup, the previous channel is kept.
-- A port bound to the iAP2 service is now named as such: the status shows
-  "wrong RFCOMM channel" instead of a made-up tape width, and the CUPS backend
-  fails the job instead of reporting it as printed.
+## [0.3.0] — 2026-11-27
 
 ### Added
 
@@ -69,6 +53,21 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- With the printer switched off, a status query, `ptouch-studio reset` and the
+  CUPS backend no longer wait forever. Opening the RFCOMM port never fails on its
+  own: the kernel hangs the half-open port up and starts the open over, paging
+  the printer every five seconds. Status queries now give up after 8 seconds with
+  "no connection to the printer", and the backend tries for about two and a half
+  minutes and then holds the job instead of leaving it in "processing".
+- The Bluetooth setup no longer assumes RFCOMM channel 1. It asks the printer
+  over SDP which channel its serial port is on — a PT-P710BT with newer firmware
+  has Apple's iAP2 service on channel 1 and the serial port on channel 2, and
+  binding the wrong one made every status reply garbage while print jobs were
+  reported as done ([#3](https://github.com/tombueng/ptouch-studio/issues/3)).
+  If the printer cannot be reached during setup, the previous channel is kept.
+- A port bound to the iAP2 service is now named as such: the status shows
+  "wrong RFCOMM channel" instead of a made-up tape width, and the CUPS backend
+  fails the job instead of reporting it as printed.
 - Arch package would not install: it depended on `ptouch-driver`, which does not
   exist. The dependency is now `printer-driver-ptouch` (AUR), and
   `bluez-deprecated-tools` was added for `/usr/bin/rfcomm`, which Arch split out of
@@ -150,5 +149,6 @@ First release.
   multi-copy jobs come out complete.
 - Packages for Debian/Ubuntu, Fedora/openSUSE and Arch, plus an AppImage.
 
+[0.3.0]: https://github.com/tombueng/ptouch-studio/releases/tag/v0.3.0
 [0.2.0]: https://github.com/tombueng/ptouch-studio/releases/tag/v0.2.0
 [0.1.0]: https://github.com/tombueng/ptouch-studio/releases/tag/v0.1.0

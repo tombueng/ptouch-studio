@@ -45,7 +45,7 @@ git clone ssh://aur@aur.archlinux.org/ptouch-studio.git aur-ptouch-studio
 cp packaging/arch/PKGBUILD packaging/arch/.SRCINFO aur-ptouch-studio/
 cd aur-ptouch-studio
 git add PKGBUILD .SRCINFO
-git commit -m "Initial import: ptouch-studio 0.2.0"
+git commit -m "Initial import: ptouch-studio 0.3.0"
 git push
 ```
 
@@ -70,7 +70,7 @@ sudo snap install snapcraft --classic
 snapcraft login
 snapcraft register ptouch-studio
 snapcraft                                  # builds the .snap
-snapcraft upload --release=stable ptouch-studio_0.2.0_amd64.snap
+snapcraft upload --release=stable ptouch-studio_0.3.0_amd64.snap
 ```
 
 ## Flathub — with a caveat

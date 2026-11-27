@@ -66,6 +66,21 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.3.0" date="2026-11-27">
+      <description>
+        <p>USB printers, pictures, QR codes and barcodes on labels, batch printing,
+        templates and seven languages.</p>
+        <ul>
+          <li>The Bluetooth setup looks up the printer's RFCOMM channel instead of
+          assuming channel 1.</li>
+          <li>The background tape check can be slowed down or switched off.</li>
+          <li>A switched-off printer no longer makes status queries and print jobs
+          wait forever.</li>
+          <li>Labels are no longer cut short, and copies come out as one strip.</li>
+          <li>Diagnostics report for bug reports.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-07-27">
       <description>
         <p>Symbols and emoji on labels, plus a fix for a crash when closing the

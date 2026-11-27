@@ -65,7 +65,7 @@ parts:
     source-type: local
     override-pull: |
       craftctl default
-      craftctl set version="0.2.0"
+      craftctl set version="0.3.0"
     cmake-parameters:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/usr
